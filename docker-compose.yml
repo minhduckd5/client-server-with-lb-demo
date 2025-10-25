@@ -1,0 +1,79 @@
+version: "3.8"
+services:
+
+    server1:
+        image: server1
+        build:
+            context: ./server
+            dockerfile: Dockerfile
+        container_name: ${SERVER_HOST_1}
+        restart: always
+        ports:
+            - ${SERVER_PORT_1}:${SERVER_PORT_1}
+        volumes:
+        - ./server:/server
+            - server-v-node-modules:/server/node_modules
+        environment:
+            SERVER_HOST: ${SERVER_HOST_1}
+            SERVER_PORT: ${SERVER_PORT_1}
+        # depends_on:
+        #     - server2
+        #     - server3
+    
+    server2:
+        image: server2
+        build:
+            context: ./server
+            dockerfile: Dockerfile
+        container_name: ${SERVER_HOST_2}
+        restart: always
+        ports:
+            - ${SERVER_PORT_2}:${SERVER_PORT_2}
+        volumes:
+            - ./server:/server
+            - server-v-node-modules:/server/node_modules
+        environment:
+            SERVER_HOST: ${SERVER_HOST_2}
+            SERVER_PORT: ${SERVER_PORT_2}
+        # depends_on:
+        #     - server1
+        #     - server3
+    
+    server3:
+        image: server3
+        build:
+            context: ./server
+            dockerfile: Dockerfile
+        container_name: ${SERVER_HOST_3}
+        restart: always
+        ports:
+            - ${SERVER_PORT_3}:${SERVER_PORT_3}
+        volumes:
+            - ./server:/server
+            - server-v-node-modules:/server/node_modules
+        environment:
+            SERVER_HOST: ${SERVER_HOST_3}
+            SERVER_PORT: ${SERVER_PORT_3}
+        # depends_on:
+        #     - server1
+        #     - server2
+    
+    reverse-proxy:
+        image: reverse-proxy
+        build:
+            context: ./reverse-proxy
+            dockerfile: Dockerfile
+        container_name: ${NGINX_HOST}
+        restart: always
+        env_file: .env
+        ports:
+            - ${NGINX_PORT}:${NGINX_PORT}
+        volumes:
+            - ./reverse-proxy/default.conf.template:/etc/nginx/templates/default.conf.template
+        depends_on:
+            - server1
+            - server2
+            - server3
+volumes:
+    server-v-node-modules:
+        name: "server-v-node-modules"
