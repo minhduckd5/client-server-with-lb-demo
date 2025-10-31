@@ -1,0 +1,29 @@
+/* Checkout page styles */
+
+.checkout-form { max-width: 800px; margin: 0 auto; }
+.checkout-form h2 { color: #1e293b; margin-bottom: 2rem; }
+.checkout-form-content { display: grid; gap: 2rem; }
+.form-section { background: white; padding: 2rem; border-radius: 1rem; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+.form-section h3 { display: flex; align-items: center; gap: 0.5rem; color: #1e293b; margin-bottom: 1.5rem; font-size: 1.125rem; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.form-group { display: flex; flex-direction: column; }
+.form-group label { font-weight: 600; color: #374151; margin-bottom: 0.5rem; }
+.form-group input { padding: 0.75rem; border: 1px solid #e2e8f0; border-radius: 0.5rem; font-size: 1rem; transition: border-color 0.2s, box-shadow 0.2s; }
+.form-group input:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+.form-group input.error { border-color: #ef4444; }
+.error-message { color: #ef4444; font-size: 0.875rem; margin-top: 0.25rem; }
+
+.order-summary { background: #f8fafc; padding: 1.5rem; border-radius: 0.5rem; margin-top: 1rem; }
+.order-summary h3 { color: #1e293b; margin-bottom: 1rem; }
+.order-item { display: flex; justify-content: space-between; margin-bottom: 0.5rem; color: #64748b; }
+.order-total { font-weight: 700; color: #1e293b; font-size: 1.125rem; border-top: 1px solid #e2e8f0; padding-top: 0.5rem; margin-top: 0.5rem; }
+
+.submit-order-btn { width: 100%; background: #2563eb; color: white; border: none; padding: 1rem; border-radius: 0.5rem; font-weight: 600; font-size: 1.125rem; cursor: pointer; transition: background-color 0.2s; }
+.submit-order-btn:hover { background: #1d4ed8; }
+
+.processing-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; color: white; }
+.processing-spinner { width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.3); border-top: 4px solid white; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 1rem; }
+
+@media (max-width: 768px) { .form-row { grid-template-columns: 1fr; } }
+
+

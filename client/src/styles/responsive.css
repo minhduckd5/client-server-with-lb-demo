@@ -1,0 +1,54 @@
+/* Dedicated responsive rules and overrides to keep styles modular */
+
+/* Safety: prevent sideways scroll on narrow screens */
+html, body {
+  overflow-x: hidden;
+}
+
+/* Tablet landscape and below */
+@media (max-width: 1200px) {
+  .main-content { padding: 1.5rem 1rem; }
+}
+
+/* Large tablets */
+@media (max-width: 1024px) {
+  .hero { grid-template-columns: 1fr; gap: 2rem; }
+  .hero-placeholder { width: min(320px, 70vw); height: min(320px, 70vw); }
+  .product-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1.25rem; }
+  .featured-grid { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+}
+
+/* Tablets */
+@media (max-width: 900px) {
+  .features { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+}
+
+/* Mobile navigation + forms */
+@media (max-width: 768px) {
+  .header-actions.open .search-input,
+  .search-section,
+  .search-bar { width: 100%; }
+
+  .product-image { height: 180px; }
+}
+
+/* Large phones */
+@media (max-width: 640px) {
+  .page-header { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
+  .page-header h1 { font-size: 1.5rem; }
+  .search-section, .search-input { width: 100%; }
+  .filter-section { width: 100%; }
+  .checkout-form { padding: 0 0.25rem; }
+  .order-success-page { padding: 2rem 1rem; }
+  .footer-content { grid-template-columns: 1fr; }
+}
+
+/* Phones */
+@media (max-width: 480px) {
+  .main-content { padding: 1rem; }
+  .product-grid { grid-template-columns: 1fr; }
+  .product-filters { flex-direction: column; align-items: stretch; }
+  .filter-section { flex-direction: column; }
+}
+
+

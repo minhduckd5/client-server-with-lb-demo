@@ -1,0 +1,24 @@
+/* Order success page styles */
+
+.order-success-page { text-align: center; padding: 4rem 2rem; }
+.success-content { max-width: 600px; margin: 0 auto; }
+.success-icon { color: #10b981; margin-bottom: 1rem; }
+.success-content h1 { color: #1e293b; margin-bottom: 1rem; }
+.success-content p { color: #64748b; margin-bottom: 2rem; }
+.order-details { background: #f8fafc; padding: 1.5rem; border-radius: 0.5rem; margin-bottom: 2rem; text-align: left; }
+.order-details h3 { color: #1e293b; margin-bottom: 1rem; }
+.next-steps { text-align: left; margin-bottom: 2rem; }
+.next-steps h3 { color: #1e293b; margin-bottom: 1rem; }
+.step { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; padding: 1rem; background: white; border-radius: 0.5rem; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+.step h4 { color: #1e293b; margin-bottom: 0.25rem; }
+.step p { color: #64748b; margin: 0; }
+.action-buttons { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
+.btn-primary, .btn-secondary { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.75rem 1.5rem; border-radius: 0.5rem; text-decoration: none; font-weight: 600; transition: all 0.2s; }
+.btn-primary { background: #2563eb; color: white; }
+.btn-primary:hover { background: #1d4ed8; }
+.btn-secondary { background: #f1f5f9; color: #2563eb; }
+.btn-secondary:hover { background: #e2e8f0; }
+
+@media (max-width: 640px) { .order-success-page { padding: 2rem 1rem; } }
+
+
