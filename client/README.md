@@ -1,3 +1,54 @@
+<!-- --- START MODIFICATION: Load Balancer usage section injected at top -->
+
+## Using the Client with the nginx Load Balancer
+
+This client is designed to call the backend via an nginx reverse proxy/load balancer defined in `docker-compose.yml`.
+
+1) Configure the load balancer environment (at repo root):
+
+```env
+# .env (root next to docker-compose.yml)
+SERVER_HOST_1=server1
+SERVER_PORT_1=3001
+SERVER_HOST_2=server2
+SERVER_PORT_2=3002
+SERVER_HOST_3=server3
+SERVER_PORT_3=3003
+
+NGINX_HOST=reverse-proxy
+NGINX_PORT=8080
+```
+
+2) Start the backend pool and nginx:
+
+```bash
+docker compose up -d --build
+```
+
+3) Point the client to the load balancer:
+
+```env
+# client/.env
+VITE_API_URL=http://localhost:8080
+```
+
+4) Run the client:
+
+```bash
+cd client
+pnpm install
+pnpm dev
+```
+
+5) Validate traffic is balanced:
+- Hit `http://localhost:8080/api/health` multiple times; the `server` field will show which backend instance responded (e.g., `server1:3001`, `server2:3002`).
+
+Notes:
+- The nginx upstream is configured via `reverse-proxy/default.conf.template`. Weighting can be adjusted there.
+- The compose file maps `${NGINX_PORT}` to the host, so you can change the external port via `.env`.
+
+<!-- --- END MODIFICATION -->
+
 # ShopHub - Modern Shopping Site Frontend
 
 A modern, responsive shopping site built with React, TypeScript, and Vite, designed to work with a client-server architecture including nginx load balancer.
