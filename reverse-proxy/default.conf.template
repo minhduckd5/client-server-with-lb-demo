@@ -1,7 +1,7 @@
 upstream backend {
-    server ${SERVER_HOST_1}:${SERVER_PORT_1}    weight=5;
-    server ${SERVER_HOST_2}:${SERVER_PORT_2};
-    server ${SERVER_HOST_3}:${SERVER_PORT_3};
+    server ${SERVER_HOST_1}:${SERVER_PORT_1}    max_fails=3 fail_timeout=5s    weight=5;
+    server ${SERVER_HOST_2}:${SERVER_PORT_2}    max_fails=3 fail_timeout=5s;
+    server ${SERVER_HOST_3}:${SERVER_PORT_3}    max_fails=3 fail_timeout=5s;
 }
 
 server {
