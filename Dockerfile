@@ -15,15 +15,16 @@ services:
         environment:
             - SERVER_HOST: ${SERVER_HOST_1}
             - SERVER_PORT: ${SERVER_PORT_1}
-            - DB_HOST: ${PG_HOST}
+            # PG_HOST: ${PG_HOST} or postgres or localhost
+            - PG_HOST: host.docker.internal
             - DB_PORT: ${PG_PORT}
             - DB_USER: ${PG_USER}
             - DB_PASSWORD: ${PG_PASSWORD}
             - DB_NAME: ${PG_DATABASE}
-        depends_on:
+        # depends_on:
         #     - server2
         #     - server3
-        - postgres
+        # - postgres
     
     server2:
         image: server2
@@ -39,15 +40,16 @@ services:
         environment:
             - SERVER_HOST: ${SERVER_HOST_2}
             - SERVER_PORT: ${SERVER_PORT_2}
-            - DB_HOST: ${PG_HOST}
+            # PG_HOST: ${PG_HOST} or postgres or localhost
+            - PG_HOST: host.docker.internal
             - DB_PORT: ${PG_PORT}
             - DB_USER: ${PG_USER}
             - DB_PASSWORD: ${PG_PASSWORD}
             - DB_NAME: ${PG_DATABASE}
-        depends_on:
+        # depends_on:
         #     - server1
         #     - server3
-        - postgres
+        # - postgres
         
     server3:
         image: server3
@@ -63,15 +65,16 @@ services:
         environment:
             - SERVER_HOST: ${SERVER_HOST_3}
             - SERVER_PORT: ${SERVER_PORT_3}
-            - DB_HOST: ${PG_HOST}
+            # PG_HOST: ${PG_HOST} or postgres or localhost
+            - PG_HOST: host.docker.internal
             - DB_PORT: ${PG_PORT}
             - DB_USER: ${PG_USER}
             - DB_PASSWORD: ${PG_PASSWORD}
             - DB_NAME: ${PG_DATABASE}
-        depends_on:
+        # depends_on:
         #     - server1
         #     - server2
-        - postgres
+        # - postgres
 
     
     reverse-proxy:
@@ -93,20 +96,21 @@ services:
             - server3
     
     # PostgreSQL Database
-    postgres:
-        image: postgres:15-alpine
-        container_name: postgres
-        restart: always
-        environment:
-            POSTGRES_DB: ${PG_DATABASE}
-            POSTGRES_USER: ${PG_USER}
-            POSTGRES_PASSWORD: ${PG_PASSWORD}
-        ports:
-            - ${PG_PORT}:${PG_PORT}
-        volumes:
-            - postgres-data:/var/lib/postgresql/data
+    # postgres:
+    #     image: postgres:15-alpine
+    #     container_name: postgres
+    #     restart: always
+    #     environment:
+    #         POSTGRES_DB: ${PG_DATABASE}
+    #         POSTGRES_USER: ${PG_USER}
+    #         POSTGRES_PASSWORD: ${PG_PASSWORD}
+    #     ports:
+    #         - ${PG_PORT}:${PG_PORT}
+    #     volumes:
+    #         - postgres-data:/var/lib/postgresql/data
+    #         - ./server/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
 volumes:
     server-v-node-modules:
         name: "server-v-node-modules"
-    postgres-data:
-        name: "postgres-data"
+    # postgres-data:
+    #     name: "postgres-data"

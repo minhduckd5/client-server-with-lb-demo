@@ -1,7 +1,7 @@
 // API service for backend integration
 import type { Product, CartItem, Order } from '../types';
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
-
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:9999';
+// 9999 if route to nginx load balancer, 3001 if route to local server
 export interface ApiResponse<T> {
   data: T;
   success: boolean;
