@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: server2
+  namespace: loadbalancer
+  labels:
+    app: server2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: server2
+  template:
+    metadata:
+      labels:
+        app: server2
+    spec:
+      containers:
+      - name: server2
+        # MODIFIED: Use local image 'server:latest' (built on CP) and prevent pulling from Docker Hub (imagePullPolicy: Never)
+        image: server:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 3002
+          name: http
+        env:
+        - name: SERVER_HOST
+          value: "0.0.0.0"
+        - name: SERVER_PORT
+          value: "3002"
+        - name: PG_HOST
+          value: "host.docker.internal"
+        - name: PG_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: PG_PORT
+        - name: PG_USER
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: PG_USER
+        - name: PG_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: PG_PASSWORD
+        - name: PG_DATABASE
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: PG_DATABASE
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: 3002
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: 3002
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+
+

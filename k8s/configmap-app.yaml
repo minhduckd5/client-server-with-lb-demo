@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: loadbalancer
+data:
+  PG_PORT: "5432"
+  PG_USER: "postgres"
+  PG_DATABASE: "ShoppingCS-LB"
+  # REDIS_PORT: "6379"
+  # REDIS_PASSWORD: ""
+  # TCP_AUTH_PORT: "9090"
+  # TCP_AUTH_HOST: "0.0.0.0"
+  # SESSION_TTL: "86400"
+
+

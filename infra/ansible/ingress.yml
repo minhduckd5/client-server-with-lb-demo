@@ -1,0 +1,47 @@
+---
+# Deploy Ingress Controller (Nginx)
+# This playbook deploys Nginx Ingress Controller exposed via MetalLB
+
+- name: Deploy Nginx Ingress Controller
+  hosts: k3s_control
+  become: true
+  gather_facts: true
+
+  vars:
+    kubeconfig_path: "/home/{{ ansible_user }}/.kube/config"
+    ingress_namespace: "ingress-nginx"
+
+  tasks:
+    - name: Check if Ingress Controller is already installed
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} get namespace {{ ingress_namespace }}
+      register: ingress_check
+      ignore_errors: true
+      changed_when: false
+
+    - name: Create Ingress Controller manifest with MetalLB
+      template:
+        src: nginx-ingress-metallb.yaml.j2
+        dest: /tmp/nginx-ingress.yaml
+        mode: '0644'
+
+    - name: Apply Ingress Controller manifest
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} apply -f /tmp/nginx-ingress.yaml
+      when: ingress_check.rc != 0
+      register: ingress_apply
+
+    - name: Wait for Ingress Controller to be ready
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} wait --namespace {{ ingress_namespace }} --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=300s
+      ignore_errors: true
+
+    - name: Get Ingress Controller LoadBalancer IP
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} get svc -n {{ ingress_namespace }} ingress-nginx-controller -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+      register: ingress_ip
+      changed_when: false
+      until: ingress_ip.stdout != ""
+      retries: 30
+      delay: 5
+
+    - name: Display Ingress Controller IP
+      debug:
+        msg: "Ingress Controller LoadBalancer IP: {{ ingress_ip.stdout }}"
+

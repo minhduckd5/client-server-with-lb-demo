@@ -1,0 +1,37 @@
+---
+# Common variables for all hosts
+
+# System Configuration
+timezone: "UTC"
+ntp_servers:
+  - "0.pool.ntp.org"
+  - "1.pool.ntp.org"
+
+# K3s Configuration
+k3s_version: "latest"
+k3s_token: ""  # Auto-generated if empty
+
+# MetalLB Configuration
+metallb_version: "v0.13.12"
+metallb_ip_pool_start: "192.168.1.240"
+metallb_ip_pool_end: "192.168.1.250"
+
+# Ingress Controller
+ingress_controller: "nginx"
+nginx_ingress_version: "1.9.0"
+
+# Monitoring
+prometheus_version: "v2.48.0"
+grafana_version: "10.2.0"
+node_exporter_version: "1.6.1"
+kube_state_metrics_version: "v2.10.0"
+
+# System Requirements
+disable_swap: true
+enable_ip_forwarding: true
+
+# K3s uses its own CNI (Flannel), no separate CNI installation needed
+
+# Firewall (if ufw is installed)
+firewall_enabled: false
+

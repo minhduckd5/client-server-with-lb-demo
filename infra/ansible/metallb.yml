@@ -1,0 +1,61 @@
+---
+# MODIFY: Set address pool to a free IP range on your vSphere network
+# MetalLB deployment playbook
+# This playbook deploys MetalLB in L2 mode with IP address pool configuration
+
+- name: Deploy MetalLB LoadBalancer
+  hosts: k3s_control
+  become: true
+  gather_facts: true
+
+  vars:
+    kubeconfig_path: "/home/{{ ansible_user }}/.kube/config"
+    metallb_namespace: "metallb-system"
+
+  tasks:
+    - name: Check if MetalLB is already installed
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} get namespace {{ metallb_namespace }}
+      register: metallb_check
+      # ignore_errors: true
+      changed_when: false
+      failed_when: metallb_check.rc != 0 and 'NotFound' not in metallb_check.stderr
+
+    - name: Create MetalLB namespace
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} create namespace {{ metallb_namespace }}
+      when: metallb_check.rc != 0
+
+    - name: Apply MetalLB manifest
+      shell: |
+        kubectl --kubeconfig={{ kubeconfig_path }} apply -f https://raw.githubusercontent.com/metallb/metallb/{{ metallb_version }}/config/manifests/metallb-native.yaml
+      when: metallb_check.rc != 0
+      register: metallb_apply
+
+    - name: Wait for MetalLB controller to be ready
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} wait --namespace {{ metallb_namespace }} --for=condition=ready pod --selector=app=metallb --timeout=300s
+      when: metallb_check.rc != 0
+      ignore_errors: true
+
+    - name: Wait for MetalLB speaker pods to be ready
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} wait --namespace {{ metallb_namespace }} --for=condition=ready pod --selector=app=metallb,component=speaker --timeout=300s
+      when: metallb_check.rc != 0
+      ignore_errors: true
+
+    - name: Create MetalLB IP address pool ConfigMap
+      template:
+        src: metallb-config.yaml.j2
+        dest: /tmp/metallb-config.yaml
+        mode: '0644'
+
+    - name: Apply MetalLB IP address pool
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} apply -f /tmp/metallb-config.yaml
+      register: metallb_config_apply
+
+    - name: Verify MetalLB IP address pool
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} get ipaddresspool -n {{ metallb_namespace }}
+      register: metallb_pool_check
+      changed_when: false
+
+    - name: Display MetalLB status
+      debug:
+        msg: "MetalLB deployed successfully with IP pool {{ metallb_ip_pool_start }}-{{ metallb_ip_pool_end }}"
+

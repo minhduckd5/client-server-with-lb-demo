@@ -1,0 +1,79 @@
+---
+# Deploy Monitoring Stack (Prometheus, Grafana, node-exporter, kube-state-metrics)
+# This playbook deploys the complete monitoring stack
+
+- name: Deploy Monitoring Stack
+  hosts: k3s_control
+  become: true
+  gather_facts: true
+
+  vars:
+    kubeconfig_path: "/home/{{ ansible_user }}/.kube/config"
+    monitoring_namespace: "monitoring"
+
+  tasks:
+    - name: Create monitoring namespace
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} create namespace {{ monitoring_namespace }} --dry-run=client -o yaml | kubectl --kubeconfig={{ kubeconfig_path }} apply -f -
+      register: namespace_create
+
+    - name: Deploy node-exporter DaemonSet
+      template:
+        src: node-exporter.yaml.j2
+        dest: /tmp/node-exporter.yaml
+        mode: '0644'
+
+    - name: Apply node-exporter
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} apply -f /tmp/node-exporter.yaml
+      register: node_exporter_apply
+
+    - name: Deploy kube-state-metrics
+      template:
+        src: kube-state-metrics.yaml.j2
+        dest: /tmp/kube-state-metrics.yaml
+        mode: '0644'
+
+    - name: Apply kube-state-metrics
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} apply -f /tmp/kube-state-metrics.yaml
+      register: kube_state_metrics_apply
+
+    - name: Deploy Prometheus
+      template:
+        src: prometheus.yaml.j2
+        dest: /tmp/prometheus.yaml
+        mode: '0644'
+
+    - name: Apply Prometheus
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} apply -f /tmp/prometheus.yaml
+      register: prometheus_apply
+
+    - name: Deploy Grafana
+      template:
+        src: grafana.yaml.j2
+        dest: /tmp/grafana.yaml
+        mode: '0644'
+
+    - name: Apply Grafana
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} apply -f /tmp/grafana.yaml
+      register: grafana_apply
+
+    - name: Wait for Prometheus to be ready
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} wait --namespace {{ monitoring_namespace }} --for=condition=ready pod -l app=prometheus --timeout=300s
+      ignore_errors: true
+
+    - name: Wait for Grafana to be ready
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} wait --namespace {{ monitoring_namespace }} --for=condition=ready pod -l app=grafana --timeout=300s
+      ignore_errors: true
+
+    - name: Get Grafana service info
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} get svc -n {{ monitoring_namespace }} grafana -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+      register: grafana_ip
+      changed_when: false
+      until: grafana_ip.stdout != ""
+      retries: 30
+      delay: 5
+      ignore_errors: true
+
+    - name: Display monitoring stack status
+      debug:
+        msg: "Monitoring stack deployed. Grafana LoadBalancer IP: {{ grafana_ip.stdout | default('Pending assignment') }}"
+

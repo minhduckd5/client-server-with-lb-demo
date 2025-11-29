@@ -1,0 +1,28 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: loadbalancer
+
+resources:
+  - namespace.yaml
+  - configmap-app.yaml
+  - secret-app.yaml
+  - configmap-nginx.yaml
+  - deployment-server1.yaml
+  - deployment-server2.yaml
+  - deployment-server3.yaml
+  - service-server1.yaml
+  - service-server2.yaml
+  - service-server3.yaml
+  - deployment-nginx.yaml
+  - service-nginx.yaml
+  # Full stack components (uncomment to include):
+  # - redis-deployment.yaml
+  # - tcp-auth-server-deployment.yaml
+
+# Common labels
+commonLabels:
+  app.kubernetes.io/name: loadbalancer
+  app.kubernetes.io/component: load-balancer-stack
+
+

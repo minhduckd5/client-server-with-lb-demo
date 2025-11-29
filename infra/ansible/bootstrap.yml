@@ -1,0 +1,75 @@
+---
+# MODIFY: Ensure target hosts and SSH keys are configured in inventory
+# Bootstrap playbook: Prepare all nodes for K3s installation
+# This playbook configures system settings and prepares nodes for K3s
+
+- name: Bootstrap K3s nodes
+  hosts: k3s_nodes
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install required packages
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+          - software-properties-common
+          - net-tools
+          - vim
+        state: present
+
+    - name: Disable swap
+      shell: |
+        swapoff -a
+        sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+      when: disable_swap | bool
+
+    - name: Load required kernel modules
+      modprobe:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - overlay
+        - br_netfilter
+
+    - name: Configure sysctl parameters
+      sysctl:
+        name: "{{ item.key }}"
+        value: "{{ item.value }}"
+        state: present
+        sysctl_set: true
+        reload: true
+      loop:
+        - { key: 'net.bridge.bridge-nf-call-iptables', value: '1' }
+        - { key: 'net.bridge.bridge-nf-call-ip6tables', value: '1' }
+        - { key: 'net.ipv4.ip_forward', value: '1' }
+      when: enable_ip_forwarding | bool
+
+    - name: Ensure sysctl settings persist
+      lineinfile:
+        path: /etc/sysctl.conf
+        line: "{{ item.key }} = {{ item.value }}"
+        regexp: "^{{ item.key }}"
+        state: present
+      loop:
+        - { key: 'net.bridge.bridge-nf-call-iptables', value: '1' }
+        - { key: 'net.bridge.bridge-nf-call-ip6tables', value: '1' }
+        - { key: 'net.ipv4.ip_forward', value: '1' }
+      when: enable_ip_forwarding | bool
+
+    - name: Install kubectl (optional, for local use)
+      apt:
+        name: kubectl
+        state: present
+        update_cache: true
+      when: install_kubectl | default(false) | bool
+

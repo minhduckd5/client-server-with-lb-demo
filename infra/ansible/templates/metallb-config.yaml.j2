@@ -1,0 +1,19 @@
+# MODIFY: set address pool to a free IP range on your vSphere network
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: default
+  namespace: {{ metallb_namespace }}
+spec:
+  addresses:
+  - {{ metallb_ip_pool_start }}-{{ metallb_ip_pool_end }}
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: default
+  namespace: {{ metallb_namespace }}
+spec:
+  ipAddressPools:
+  - default
+

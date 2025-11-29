@@ -1,0 +1,12 @@
+---
+# K3s Control Plane Node Specific Variables
+
+# K3s API Server Configuration
+k3s_api_port: 6443
+
+# Cluster Name
+cluster_name: "k3s-cluster"
+
+# Control Plane Role
+node_role: "control-plane"
+

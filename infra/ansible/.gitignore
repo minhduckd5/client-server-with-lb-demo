@@ -1,0 +1,12 @@
+# Ansible
+*.retry
+inventory.ini
+*.log
+.vault_pass
+*.swp
+*.swo
+*~
+
+# Terraform outputs
+terraform_outputs.json
+

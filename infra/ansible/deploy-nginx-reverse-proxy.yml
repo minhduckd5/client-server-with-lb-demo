@@ -1,0 +1,203 @@
+---
+# Deploy Nginx Reverse Proxy with MetalLB LoadBalancer
+# This playbook deploys the nginx reverse proxy and exposes it via MetalLB
+
+- name: Deploy Nginx Reverse Proxy with MetalLB
+  hosts: k3s_control
+  become: true
+  gather_facts: true
+
+  vars:
+    kubeconfig_path: "/home/{{ ansible_user }}/.kube/config"
+    k8s_namespace: "loadbalancer"
+    k8s_manifests_dir: "{{ inventory_dir }}/../../k8s"
+    # Backend Mode: 'k8s' (default) or 'host'
+    # Set to 'host' to route traffic to your local machine (e.g. 192.168.1.1)
+    backend_mode: "k8s" 
+    host_backend_ip: "192.168.1.1"
+
+  tasks:
+    - name: Check if namespace exists
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} get namespace {{ k8s_namespace }}
+      register: namespace_check
+      # ignore_errors: true
+      changed_when: false
+      failed_when: namespace_check.rc != 0 and 'NotFound' not in namespace_check.stderr
+
+    - name: Create namespace if it doesn't exist
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} create namespace {{ k8s_namespace }}
+      when: namespace_check.rc != 0
+
+    - name: Deploy nginx configmap (Template)
+      template:
+        src: templates/configmap-nginx.yaml.j2
+        dest: /tmp/configmap-nginx.yaml
+      
+    - name: Apply nginx configmap
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} apply -f /tmp/configmap-nginx.yaml
+
+    - name: Remove backend deployments (Hybrid Mode)
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} delete deployment -n {{ k8s_namespace }} server1 server2 server3 --ignore-not-found
+      when: backend_mode == 'host'
+
+    - name: Remove backend services (Hybrid Mode)
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} delete service -n {{ k8s_namespace }} server1-service server2-service server3-service --ignore-not-found
+      when: backend_mode == 'host'
+
+    - name: Check if backend deployments are present
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} get deployment -n {{ k8s_namespace }} server1 server2 server3
+      register: backend_deployments_check
+      changed_when: false
+      failed_when: false
+      when: backend_mode == 'k8s'
+
+    - name: Copy backend deployment manifests
+      copy:
+        src: "{{ item }}"
+        dest: "/tmp/{{ item | basename }}"
+      loop:
+        - "{{ k8s_manifests_dir }}/deployment-server1.yaml"
+        - "{{ k8s_manifests_dir }}/deployment-server2.yaml"
+        - "{{ k8s_manifests_dir }}/deployment-server3.yaml"
+      when: backend_mode == 'k8s' and backend_deployments_check.rc != 0
+
+    - name: Deploy backend deployments if not present
+      shell: |
+        kubectl --kubeconfig={{ kubeconfig_path }} apply -f /tmp/deployment-server1.yaml
+        kubectl --kubeconfig={{ kubeconfig_path }} apply -f /tmp/deployment-server2.yaml
+        kubectl --kubeconfig={{ kubeconfig_path }} apply -f /tmp/deployment-server3.yaml
+      when: backend_mode == 'k8s' and backend_deployments_check.rc != 0
+
+    - name: Check if backend services are deployed
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} get svc -n {{ k8s_namespace }} server1-service server2-service server3-service
+      register: backend_services_check
+      changed_when: false
+      failed_when: false
+      when: backend_mode == 'k8s'
+
+    - name: Copy backend service manifests
+      copy:
+        src: "{{ item }}"
+        dest: "/tmp/{{ item | basename }}"
+      loop:
+        - "{{ k8s_manifests_dir }}/service-server1.yaml"
+        - "{{ k8s_manifests_dir }}/service-server2.yaml"
+        - "{{ k8s_manifests_dir }}/service-server3.yaml"
+      when: backend_mode == 'k8s' and backend_services_check.rc != 0
+
+    - name: Deploy backend services if not present
+      shell: |
+        kubectl --kubeconfig={{ kubeconfig_path }} apply -f /tmp/service-server1.yaml
+        kubectl --kubeconfig={{ kubeconfig_path }} apply -f /tmp/service-server2.yaml
+        kubectl --kubeconfig={{ kubeconfig_path }} apply -f /tmp/service-server3.yaml
+      when: backend_mode == 'k8s' and backend_services_check.rc != 0
+
+    - name: Wait for backend pods to be ready
+      shell: |
+        kubectl --kubeconfig={{ kubeconfig_path }} wait --namespace {{ k8s_namespace }} --for=condition=ready pod -l app=server1 --timeout=10s
+        kubectl --kubeconfig={{ kubeconfig_path }} wait --namespace {{ k8s_namespace }} --for=condition=ready pod -l app=server2 --timeout=10s
+        kubectl --kubeconfig={{ kubeconfig_path }} wait --namespace {{ k8s_namespace }} --for=condition=ready pod -l app=server3 --timeout=10s
+      when: backend_mode == 'k8s'
+
+    - name: Ensure openssl is installed
+      package:
+        name: openssl
+        state: present
+
+    - name: Generate self-signed certificate for Nginx
+      shell: |
+        openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+        -keyout /tmp/nginx-tls.key -out /tmp/nginx-tls.crt \
+        -subj "/CN=reverse-proxy/O=Ansible-Generated"
+
+    - name: Delete existing TLS secret (if any)
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} delete secret nginx-reverse-proxy-tls -n {{ k8s_namespace }} --ignore-not-found
+
+    - name: Create TLS secret
+      shell: |
+        kubectl --kubeconfig={{ kubeconfig_path }} create secret tls nginx-reverse-proxy-tls \
+        --key /tmp/nginx-tls.key --cert /tmp/nginx-tls.crt \
+        -n {{ k8s_namespace }}
+
+    - name: Check if nginx reverse proxy deployment exists
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} get deployment nginx-reverse-proxy -n {{ k8s_namespace }}
+      register: nginx_deployment_check
+      # ignore_errors: true
+      changed_when: false
+      failed_when: nginx_deployment_check.rc != 0 and 'NotFound' not in nginx_deployment_check.stderr
+
+    - name: Copy nginx reverse proxy deployment manifest
+      copy:
+        src: "{{ k8s_manifests_dir }}/deployment-nginx.yaml"
+        dest: "/tmp/deployment-nginx.yaml"
+
+    - name: Deploy nginx reverse proxy
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} apply -f /tmp/deployment-nginx.yaml
+      register: nginx_deploy
+
+    - block:
+        - name: Wait for nginx reverse proxy pods to be ready
+          shell: kubectl --kubeconfig={{ kubeconfig_path }} wait --namespace {{ k8s_namespace }} --for=condition=ready pod -l app=nginx-reverse-proxy --timeout=10s
+      rescue:
+        - name: Get pod status on failure
+          shell: kubectl --kubeconfig={{ kubeconfig_path }} get pods -n {{ k8s_namespace }}
+          register: pod_status
+          ignore_errors: true
+        
+        - name: Display pod status
+          debug:
+            var: pod_status.stdout_lines
+
+        - name: Get pod logs on failure
+          shell: kubectl --kubeconfig={{ kubeconfig_path }} logs -n {{ k8s_namespace }} -l app=nginx-reverse-proxy --tail=50
+          register: pod_logs
+          ignore_errors: true
+
+        - name: Display pod logs
+          debug:
+            var: pod_logs.stdout_lines
+
+        - name: Describe pods on failure
+          shell: kubectl --kubeconfig={{ kubeconfig_path }} describe pods -n {{ k8s_namespace }} -l app=nginx-reverse-proxy
+          register: pod_describe
+          ignore_errors: true
+
+        - name: Display pod description
+          debug:
+            var: pod_describe.stdout_lines
+
+        - name: Fail the playbook
+          fail:
+            msg: "Nginx reverse proxy pods failed to become ready. Check logs above for details."
+
+    - name: Copy nginx reverse proxy service manifest
+      copy:
+        src: "{{ k8s_manifests_dir }}/service-nginx.yaml"
+        dest: "/tmp/service-nginx.yaml"
+
+    - name: Deploy nginx reverse proxy LoadBalancer service
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} apply -f /tmp/service-nginx.yaml
+      register: nginx_service_deploy
+
+    - name: Wait for LoadBalancer IP assignment
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} get svc -n {{ k8s_namespace }} nginx-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+      register: nginx_lb_ip
+      changed_when: false
+      until: nginx_lb_ip.stdout != ""
+      retries: 30
+      delay: 5
+      # ignore_errors: true
+
+    - name: Display nginx reverse proxy LoadBalancer IP
+      debug:
+        msg: "Nginx Reverse Proxy LoadBalancer IP: {{ nginx_lb_ip.stdout | default('Pending assignment') }}"
+
+    - name: Verify service endpoints
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} get endpoints -n {{ k8s_namespace }} nginx-service
+      register: nginx_endpoints
+      changed_when: false
+
+    - name: Display service status
+      debug:
+        msg: "Nginx Reverse Proxy service deployed. Endpoints: {{ nginx_endpoints.stdout_lines }}"
+

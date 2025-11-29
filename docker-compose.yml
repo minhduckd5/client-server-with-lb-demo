@@ -92,6 +92,38 @@ services:
             - server1
             - server2
             - server3
+    redis:
+        image: redis:7-alpine
+        container_name: redis
+        restart: always
+        ports:
+            - ${REDIS_PORT:-6379}:6379
+        volumes:
+            - redis-data:/data
+        command: redis-server --appendonly yes
+    tcp-auth-server:
+        image: tcp-auth-server
+        build:
+            context: ./tcp-auth-server
+            dockerfile: Dockerfile
+        container_name: tcp-auth-server
+        restart: always
+        ports:
+            - ${TCP_AUTH_PORT:-9090}:9090
+        environment:
+            TCP_AUTH_HOST: ${TCP_AUTH_HOST:-0.0.0.0}
+            TCP_AUTH_PORT: ${TCP_AUTH_PORT:-9090}
+            REDIS_HOST: redis
+            REDIS_PORT: ${REDIS_PORT:-6379}
+            REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+            PG_HOST: host.docker.internal
+            PG_PORT: ${PG_PORT}
+            PG_USER: ${PG_USER}
+            PG_PASSWORD: ${PG_PASSWORD}
+            PG_DATABASE: ${PG_DATABASE}
+            SESSION_TTL: ${SESSION_TTL:-86400}
+        depends_on:
+            - redis
     # PostgreSQL Database
     # postgres:
     #     image: postgres:15-alpine
@@ -109,5 +141,7 @@ services:
 volumes:
     server-v-node-modules:
         name: "server-v-node-modules"
+    redis-data:
+        name: "redis-data"
     # postgres-data:
     #     name: "postgres-data"

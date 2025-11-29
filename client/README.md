@@ -1,4 +1,4 @@
-<!-- --- START MODIFICATION: Load Balancer usage section injected at top -->
+<!-- MODIFIED: Documented client usage via nginx load balancer -->
 
 ## Using the Client with the nginx Load Balancer
 
@@ -47,7 +47,6 @@ Notes:
 - The nginx upstream is configured via `reverse-proxy/default.conf.template`. Weighting can be adjusted there.
 - The compose file maps `${NGINX_PORT}` to the host, so you can change the external port via `.env`.
 
-<!-- --- END MODIFICATION -->
 
 # ShopHub - Modern Shopping Site Frontend
 

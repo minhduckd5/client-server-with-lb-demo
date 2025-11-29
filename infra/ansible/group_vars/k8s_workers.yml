@@ -1,0 +1,12 @@
+---
+# K3s Worker Node Specific Variables
+
+# Worker Node Role
+node_role: "agent"
+
+# Node Labels (optional)
+node_labels: []
+
+# Node Taints (optional)
+node_taints: []
+

@@ -1,0 +1,141 @@
+---
+# MODIFY: Ensure target hosts and SSH keys are configured in inventory
+# K3s installation playbook
+# This playbook installs K3s on control plane and worker nodes
+
+- name: Install K3s on control plane
+  hosts: k3s_control
+  become: true
+  gather_facts: true
+
+  vars:
+    k3s_version: 'v1.30.2+k3s1'
+    k3s_token: ''
+
+  tasks:
+    - name: Check if K3s is already installed
+      stat:
+        path: /usr/local/bin/k3s
+      register: k3s_installed
+
+    - name: Download and install K3s server
+      shell: |
+        curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION={{ k3s_version }} sh -s - server \
+          --cluster-init \
+          --write-kubeconfig-mode 644 \
+          --tls-san {{ ansible_default_ipv4.address }}
+      when: not k3s_installed.stat.exists
+      register: k3s_install
+
+    - name: Wait for K3s to be ready
+    # uri:
+    #     url: "https://localhost:6443/healthz"
+    #     method: GET
+    #     validate_certs: false
+    #     status_code: [200]
+      shell: "curl -sfL --insecure https://localhost:6443/ping"
+      register: k3s_ready
+      # until: k3s_ready.status == 200
+      until: k3s_ready.rc|default(1) == 0 and k3s_ready.stdout|trim == "pong"
+      retries: 30
+      delay: 5
+      # ignore_errors: true
+      changed_when: false
+      failed_when: false
+
+    - name: Get K3s node token
+      shell: cat /var/lib/rancher/k3s/server/node-token
+      register: k3s_node_token
+      changed_when: false
+      when: k3s_installed.stat.exists or k3s_install.changed
+
+    - name: Set fact for K3s token
+      set_fact:
+        k3s_join_token: "{{ k3s_node_token.stdout }}"
+      when: k3s_node_token.stdout is defined
+
+    - name: Create .kube directory
+      file:
+        path: "/home/{{ ansible_user }}/.kube"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0755'
+
+    - name: Copy kubeconfig to user home
+      copy:
+        src: /etc/rancher/k3s/k3s.yaml
+        dest: "/home/{{ ansible_user }}/.kube/config"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0600'
+        remote_src: true
+
+    - name: Update kubeconfig server URL
+      lineinfile:
+        path: "/home/{{ ansible_user }}/.kube/config"
+        regexp: '^(\s+)server: https://127.0.0.1:6443'
+        line: '\1server: https://{{ ansible_default_ipv4.address }}:6443'
+        backrefs: true
+
+    - name: Display K3s status
+      debug:
+        msg: "K3s control plane installed. Node token: {{ k3s_join_token | default('Not available') }}"
+
+- name: Install K3s on worker nodes
+  hosts: k3s_workers
+  become: true
+  gather_facts: true
+
+  vars:
+    k3s_version: 'v1.30.2+k3s1'
+    control_plane_host: "{{ groups['k3s_control'][0] }}"
+
+  tasks:
+    - name: Check if K3s is already installed
+      stat:
+        path: /usr/local/bin/k3s
+      register: k3s_installed
+
+    - name: Get K3s token from control plane
+      shell: cat /var/lib/rancher/k3s/server/node-token
+      register: k3s_token_result
+      delegate_to: "{{ control_plane_host }}"
+      changed_when: false
+
+    - name: Get control plane IP
+      set_fact:
+        control_plane_ip: "{{ hostvars[control_plane_host]['ansible_default_ipv4']['address'] }}"
+
+    - name: Install K3s agent
+      shell: |
+        curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION={{ k3s_version }} K3S_URL=https://{{ control_plane_ip }}:6443 K3S_TOKEN={{ k3s_token_result.stdout }} sh -s - agent
+      when: not k3s_installed.stat.exists
+      register: k3s_agent_install
+
+    - name: Wait for node to join cluster
+      # uri:
+      #   url: "https://{{ control_plane_ip }}:6443/api/v1/nodes/{{ inventory_hostname }}"
+      #   method: GET
+      #   user: "{{ hostvars[control_plane_host]['ansible_user'] }}"
+      #   validate_certs: false
+      #   force_basic_auth: false
+      #   status_code: [200]      
+      shell: "k3s kubectl get node {{ inventory_hostname }} -o jsonpath='{.status.conditions[?(@.type==\"Ready\")].status}'"
+      delegate_to: "{{ control_plane_host }}"
+      register: node_status
+      # until: 
+      #   - node_status.status == 200
+      #   - node_status.json.status.conditions | selectattr('type', 'equalto', 'Ready') | map(attribute='status') | first == 'True'
+      until: node_status.rc|default(1) == 0 and node_status.stdout == 'True'
+      retries: 30
+      delay: 10
+      # ignore_errors: true
+      changed_when: false
+      failed_when: false
+      when: not k3s_installed.stat.exists
+
+    - name: Display worker node status
+      debug:
+        msg: "K3s agent installed on {{ inventory_hostname }}"
+

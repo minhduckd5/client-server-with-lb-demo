@@ -1,0 +1,326 @@
+# Vagrantfile for VMware Workstation - Manual Static IP Strategy
+# This provisions 6 VMs for K3s cluster using Ubuntu 24.04
+
+# --- CONFIGURATION VARIABLES ---
+# CHANGE THIS to your actual Gateway IP (usually 192.168.1.1 or 192.168.0.1)
+GATEWAY_IP = "192.168.1.1" 
+
+# CHANGE THIS to match your Screenshot (VMnet8)
+BRIDGE_IFACE = ENV.fetch("VAGRANT_BRIDGE", "VMnet8")
+
+# --- THE NETWORK SCRIPT ---
+# This script disables cloud-init networking and forces a static Netplan config
+$network_script = <<-SCRIPT
+  NEW_IP=$1
+  GATEWAY=$2
+  
+  echo "[Network] Starting configuration for $NEW_IP..."
+  
+  # 1. Detect Interface Name (grabs first non-loopback 'e' interface)
+  IFACE=$(ip -o link show | awk -F': ' '{print $2}' | grep ^e | head -n 1)
+  echo "[Network] Detected Interface: $IFACE"
+
+  # 2. Disable Cloud-Init Network Config (The Anti-Conflict Fix)
+  echo "[Network] Disabling Cloud-Init network management..."
+  echo "network: {config: disabled}" > /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg
+  rm -f /etc/netplan/50-cloud-init.yaml
+
+  # 3. Write Static Netplan Config
+  echo "[Network] Writing Netplan configuration..."
+  
+  # We construct the content into a variable first for safety
+  NETPLAN_CONTENT="network:
+    version: 2
+    renderer: networkd
+    ethernets:
+      $IFACE:
+        dhcp4: no
+        addresses:
+          - $NEW_IP/24
+        routes:
+          - to: default
+            via: $GATEWAY
+        nameservers:
+          addresses: [8.8.8.8, 1.1.1.1]"
+
+  # Write the content to the file
+  echo "$NETPLAN_CONTENT" > /etc/netplan/01-static.yaml
+  
+  # # 4. Apply (This might disconnect the provisioner, which is expected)
+  # echo "[Network] Applying changes. If SSH hangs here, it is normal."
+  # netplan apply
+
+
+  # 4. FIX PERMISSIONS (Crucial: Stops the warnings in your log)
+  # Netplan requires strict 600 permissions
+  chmod 600 /etc/netplan/*.yaml
+
+  # 5. THE TIME BOMB (Using systemd-run)
+  # This creates a transient system service that waits 15 seconds, then runs netplan.
+  # This allows the SSH session to close cleanly with "Success" BEFORE the network changes.
+  
+  echo "[Network] Scheduling IP change to $NEW_IP in 15 seconds via Systemd..."
+  
+  systemd-run --on-active=15s --unit=vagrant-ip-change /usr/sbin/netplan apply
+
+  # 6. EXPLICIT SUCCESS
+  # We force a clean exit so Vagrant knows we are done and moves to the next VM.
+  exit 0
+SCRIPT
+
+# --- 2. THE PACKAGE SCRIPT (Fixed for Silent Prompts) ---
+$package_script = <<-SHELL
+    # 1. Set variable for current shell
+    export DEBIAN_FRONTEND=noninteractive
+
+    sleep 5
+    
+    # 2. Pass the variable explicitly into the sudo context
+    sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq
+    
+    # 3. CRITICAL: Add Dpkg Options to force default/old configs
+    # This prevents the "Keep installed version vs package maintainer version" prompt
+    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+      -o Dpkg::Options::="--force-confdef" \
+      -o Dpkg::Options::="--force-confold" \
+      openssh-server curl wget vim net-tools
+    
+    sudo sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+    sudo sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config
+    sudo systemctl restart ssh
+    
+    if [ "$UPGRADE_VMS" = "true" ]; then
+      echo "Running full system upgrade..."
+      # Apply same flags here for the full upgrade
+      sudo DEBIAN_FRONTEND=noninteractive apt-get upgrade -y \
+        -o Dpkg::Options::="--force-confdef" \
+        -o Dpkg::Options::="--force-confold"
+    fi
+  SHELL
+
+Vagrant.configure("2") do |config|
+  config.vm.box = "gutehall/ubuntu24-04"
+  config.vm.box_version = "2024.11.21"
+
+  # SSH configuration
+  config.ssh.insert_key = false
+  config.ssh.private_key_path = ["~/.ssh/id_rsa", "~/.vagrant.d/insecure_private_key"]
+  config.ssh.forward_agent = true
+  config.ssh.connect_timeout = 300
+
+  # ============================================================================
+  # Control Plane VM (192.168.1.200)
+  # ============================================================================
+  config.vm.define "k3s-control-plane" do |control|
+    control.vm.hostname = "k3s-control-plane"
+    control.vm.network "public_network", bridge: BRIDGE_IFACE, auto_config: false
+    control.vm.network "forwarded_port", guest: 22, host: 2222, id: "ssh", disabled: true
+    
+    control.vm.provider "vmware_workstation" do |v|
+      v.vmx["numvcpus"] = "2"
+      v.vmx["memsize"] = "4096"
+      v.vmx["displayName"] = "k3s-control-plane"
+      v.vmx["ethernet0.pcislotnumber"] = "160"
+      v.vmx["ethernet1.pcislotnumber"] = "224"
+    end
+
+    # Apply IP: 192.168.1.200
+    control.vm.provision "shell", inline: $package_script
+    control.vm.provision "shell", inline: $network_script, args: ["192.168.1.200", GATEWAY_IP]
+  end
+
+  # ============================================================================
+  # Worker Node 1 (192.168.1.201)
+  # ============================================================================
+  config.vm.define "k3s-worker-1" do |worker1|
+    worker1.vm.hostname = "k3s-worker-1"
+    worker1.vm.network "public_network", bridge: BRIDGE_IFACE, auto_config: false
+    worker1.vm.network "forwarded_port", guest: 22, host: 2223, id: "ssh", disabled: true
+    
+    worker1.vm.provider "vmware_workstation" do |v|
+      v.vmx["numvcpus"] = "2"
+      v.vmx["memsize"] = "4096"
+      v.vmx["displayName"] = "k3s-worker-1"
+      v.vmx["ethernet0.pcislotnumber"] = "160"
+      v.vmx["ethernet1.pcislotnumber"] = "224"
+    end
+
+    # Apply IP: 192.168.1.201
+    worker1.vm.provision "shell", inline: $package_script
+    worker1.vm.provision "shell", inline: $network_script, args: ["192.168.1.201", GATEWAY_IP]
+  end
+
+  # ============================================================================
+  # Worker Node 2 (192.168.1.202)
+  # ============================================================================
+  config.vm.define "k3s-worker-2" do |worker2|
+    worker2.vm.hostname = "k3s-worker-2"
+    worker2.vm.network "public_network", bridge: BRIDGE_IFACE, auto_config: false
+    worker2.vm.network "forwarded_port", guest: 22, host: 2224, id: "ssh", disabled: true
+    
+    worker2.vm.provider "vmware_workstation" do |v|
+      v.vmx["numvcpus"] = "2"
+      v.vmx["memsize"] = "4096"
+      v.vmx["displayName"] = "k3s-worker-2"
+      v.vmx["ethernet0.pcislotnumber"] = "160"
+      v.vmx["ethernet1.pcislotnumber"] = "224"
+    end
+
+    # Apply IP: 192.168.1.202
+    worker2.vm.provision "shell", inline: $package_script
+    worker2.vm.provision "shell", inline: $network_script, args: ["192.168.1.202", GATEWAY_IP]
+  end
+
+  # ============================================================================
+  # Ops/GitLab Runner VM (192.168.1.203)
+  # ============================================================================
+  config.vm.define "k3s-ops" do |ops|
+    ops.vm.hostname = "k3s-ops"
+    ops.vm.network "public_network", bridge: BRIDGE_IFACE, auto_config: false
+    ops.vm.network "forwarded_port", guest: 22, host: 2225, id: "ssh", disabled: true
+    
+    ops.vm.provider "vmware_workstation" do |v|
+      v.vmx["numvcpus"] = "2"
+      v.vmx["memsize"] = "4096"
+      v.vmx["displayName"] = "k3s-ops"
+      v.vmx["ethernet0.pcislotnumber"] = "160"
+      v.vmx["ethernet1.pcislotnumber"] = "224"
+    end
+
+    # Apply IP: 192.168.1.203
+    ops.vm.provision "shell", inline: $package_script
+    ops.vm.provision "shell", inline: $network_script, args: ["192.168.1.203", GATEWAY_IP]
+  end
+
+  # ============================================================================
+  # Monitoring VM (192.168.1.204)
+  # ============================================================================
+  config.vm.define "k3s-monitoring" do |monitoring|
+    monitoring.vm.hostname = "k3s-monitoring"
+    monitoring.vm.network "public_network", bridge: BRIDGE_IFACE, auto_config: false
+    monitoring.vm.network "forwarded_port", guest: 22, host: 2226, id: "ssh", disabled: true
+    
+    monitoring.vm.provider "vmware_workstation" do |v|
+      v.vmx["numvcpus"] = "2"
+      v.vmx["memsize"] = "4096"
+      v.vmx["displayName"] = "k3s-monitoring"
+      v.vmx["ethernet0.pcislotnumber"] = "160"
+      v.vmx["ethernet1.pcislotnumber"] = "224"
+    end
+
+    # Apply IP: 192.168.1.204
+    monitoring.vm.provision "shell", inline: $package_script
+    monitoring.vm.provision "shell", inline: $network_script, args: ["192.168.1.204", GATEWAY_IP]
+  end
+
+  # ============================================================================
+  # Optional LB VM (192.168.1.205)
+  # ============================================================================
+  if ENV["CREATE_LB_VM"] == "true"
+    config.vm.define "k3s-lb" do |lb|
+      lb.vm.hostname = "k3s-lb"
+      lb.vm.network "public_network", bridge: BRIDGE_IFACE, auto_config: false
+      lb.vm.network "forwarded_port", guest: 22, host: 2227, id: "ssh", disabled: true
+      
+      lb.vm.provider "vmware_workstation" do |v|
+        v.vmx["numvcpus"] = "1"
+        v.vmx["memsize"] = "2048"
+        v.vmx["displayName"] = "k3s-lb"
+        v.vmx["ethernet0.pcislotnumber"] = "160"
+        v.vmx["ethernet1.pcislotnumber"] = "224"
+      end
+
+      # Apply IP: 192.168.1.205
+      lb.vm.provision "shell", inline: $package_script
+      lb.vm.provision "shell", inline: $network_script, args: ["192.168.1.205", GATEWAY_IP]
+    end
+  end
+
+  # ============================================================================
+  # General Provisioning (Packages)
+  # This runs AFTER the network script
+  # ============================================================================
+  # config.vm.provision "shell", inline: <<-SHELL
+  #   export DEBIAN_FRONTEND=noninteractive
+  #   # Short sleep to ensure network is back up if it blipped
+  #   sleep 5
+    
+  #   sudo apt-get update -qq
+  #   sudo apt-get install -y -qq openssh-server curl wget vim net-tools
+    
+  #   sudo sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+  #   sudo sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config
+  #   sudo systemctl restart sshd
+    
+  #   if [ "$UPGRADE_VMS" = "true" ]; then
+  #     echo "Running full system upgrade..."
+  #     sudo apt-get upgrade -y
+  #   fi
+  # SHELL
+
+
+
+
+
+
+
+
+  # config.vm.provision "shell", inline: <<-SHELL
+  #   # 1. Set variable for current shell
+  #   export DEBIAN_FRONTEND=noninteractive
+
+  #   sleep 5
+    
+  #   # 2. Pass the variable explicitly into the sudo context
+  #   sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq
+    
+  #   # 3. CRITICAL: Add Dpkg Options to force default/old configs
+  #   # This prevents the "Keep installed version vs package maintainer version" prompt
+  #   sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+  #     -o Dpkg::Options::="--force-confdef" \
+  #     -o Dpkg::Options::="--force-confold" \
+  #     openssh-server curl wget vim net-tools
+    
+  #   sudo sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+  #   sudo sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config
+  #   sudo systemctl restart ssh
+    
+  #   if [ "$UPGRADE_VMS" = "true" ]; then
+  #     echo "Running full system upgrade..."
+  #     # Apply same flags here for the full upgrade
+  #     sudo DEBIAN_FRONTEND=noninteractive apt-get upgrade -y \
+  #       -o Dpkg::Options::="--force-confdef" \
+  #       -o Dpkg::Options::="--force-confold"
+  #   fi
+  # SHELL
+
+
+
+
+
+
+
+
+
+  # config.vm.provision "shell", inline: <<-SHELL
+  #   export DEBIAN_FRONTEND=noninteractive
+    
+  #   # Wait for network to stabilize after the IP change
+  #   sleep 5
+    
+  #   sudo apt-get update -qq
+  #   sudo apt-get install -y -qq openssh-server curl wget vim net-tools
+    
+  #   # Configure SSH
+  #   sudo sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+  #   sudo sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config
+    
+  #   # FIXED: Service name is 'ssh', not 'sshd' on Ubuntu 24.04
+  #   sudo systemctl restart ssh
+    
+  #   if [ "$UPGRADE_VMS" = "true" ]; then
+  #     echo "Running full system upgrade..."
+  #     sudo apt-get upgrade -y
+  #   fi
+  # SHELL
+end

@@ -1,0 +1,102 @@
+# Full Stack Component: TCP Auth Server Deployment
+# Uncomment the sections below to deploy TCP Auth Server as part of the full stack
+# Note: This requires Redis to be deployed first
+
+# ---
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: tcp-auth-server
+#   namespace: loadbalancer
+#   labels:
+#     app: tcp-auth-server
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels:
+#       app: tcp-auth-server
+#   template:
+#     metadata:
+#       labels:
+#         app: tcp-auth-server
+#     spec:
+#       containers:
+#       - name: tcp-auth-server
+#         image: tcp-auth-server:latest
+#         imagePullPolicy: IfNotPresent
+#         ports:
+#         - containerPort: 9090
+#           name: tcp
+#         env:
+#         - name: TCP_AUTH_HOST
+#           value: "0.0.0.0"
+#         - name: TCP_AUTH_PORT
+#           value: "9090"
+#         - name: REDIS_HOST
+#           value: "redis-service"  # Kubernetes service DNS name
+#         - name: REDIS_PORT
+#           valueFrom:
+#             configMapKeyRef:
+#               name: app-config
+#               key: REDIS_PORT
+#         - name: REDIS_PASSWORD
+#           valueFrom:
+#             secretKeyRef:
+#               name: app-secrets
+#               key: REDIS_PASSWORD
+#               optional: true
+#         - name: PG_HOST
+#           value: "host.docker.internal"
+#         - name: PG_PORT
+#           valueFrom:
+#             configMapKeyRef:
+#               name: app-config
+#               key: PG_PORT
+#         - name: PG_USER
+#           valueFrom:
+#             configMapKeyRef:
+#               name: app-config
+#               key: PG_USER
+#         - name: PG_PASSWORD
+#           valueFrom:
+#             secretKeyRef:
+#               name: app-secrets
+#               key: PG_PASSWORD
+#         - name: PG_DATABASE
+#           valueFrom:
+#             configMapKeyRef:
+#               name: app-config
+#               key: PG_DATABASE
+#         - name: SESSION_TTL
+#           valueFrom:
+#             configMapKeyRef:
+#               name: app-config
+#               key: SESSION_TTL
+#         resources:
+#           requests:
+#             memory: "128Mi"
+#             cpu: "100m"
+#           limits:
+#             memory: "256Mi"
+#             cpu: "200m"
+#         # Note: TCP health checks are more complex, consider implementing
+#         # a health check endpoint or using exec probe with netcat
+# ---
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: tcp-auth-server-service
+#   namespace: loadbalancer
+#   labels:
+#     app: tcp-auth-server
+# spec:
+#   type: ClusterIP
+#   ports:
+#   - port: 9090
+#     targetPort: 9090
+#     protocol: TCP
+#     name: tcp
+#   selector:
+#     app: tcp-auth-server
+
+
