@@ -12,7 +12,8 @@ variables:
   TF_WORKING_DIR: infra/terraform
   ANSIBLE_WORKING_DIR: infra/ansible
   ANSIBLE_INVENTORY: infra/ansible/inventory.ini
-  CONTROL_PLANE_IP: "192.168.100.10"
+  CONTROL_PLANE_IP: "192.168.1.200"
+  SSH_USER: "ubuntu"
 
 # Provision VMs with Vagrant (manual approval required)
 provision:
@@ -26,13 +27,13 @@ provision:
         echo "Vagrant not available in CI. Using Terraform to generate inventory."
         cd $TF_WORKING_DIR
         terraform init
-        terraform output -raw ansible_inventory > ../$ANSIBLE_INVENTORY
+        terraform output -raw ansible_inventory > $CI_PROJECT_DIR/$ANSIBLE_INVENTORY
       else
         cd $VAGRANT_WORKING_DIR
         vagrant up --provider=vmware_desktop || vagrant up
         cd ../terraform
         terraform init
-        terraform output -raw ansible_inventory > ../$ANSIBLE_INVENTORY
+        terraform output -raw ansible_inventory > $CI_PROJECT_DIR/$ANSIBLE_INVENTORY
       fi
   script:
     - echo "VMs provisioned. Inventory generated."
@@ -63,6 +64,7 @@ configure:
     - ansible-playbook -i inventory.ini k3s-install.yml
     - ansible-playbook -i inventory.ini metallb.yml \
         --extra-vars "metallb_ip_pool_start=$METALLB_IP_POOL_START metallb_ip_pool_end=$METALLB_IP_POOL_END"
+    - ansible-playbook -i inventory.ini build-images.yml
     - ansible-playbook -i inventory.ini deploy-nginx-reverse-proxy.yml
     - ansible-playbook -i inventory.ini ingress.yml
     - ansible-playbook -i inventory.ini monitoring.yml
