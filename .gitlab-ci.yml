@@ -26,8 +26,8 @@ provision:
     - vagrant plugin install vagrant-vmware-desktop || echo "Plugin install failed, continuing..."
     # Setup SSH
     - mkdir -p ~/.ssh
-    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
-    - chmod 600 ~/.ssh/id_rsa
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa.rsa
+    - chmod 600 ~/.ssh/id_rsa.rsa
   script:
     - cd $VAGRANT_WORKING_DIR
     - echo "Attempting to provision with Vagrant..."
@@ -56,7 +56,7 @@ provision:
 
       [all:vars]
       ansible_user=$SSH_USER
-      ansible_ssh_private_key_file=~/.ssh/id_rsa
+      ansible_ssh_private_key_file=~/.ssh/id_rsa.rsa
       ansible_ssh_common_args='-o StrictHostKeyChecking=no'
       EOF
     - echo "Inventory generated:"
@@ -81,13 +81,13 @@ configure:
     - eval $(ssh-agent -s)
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
-    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
-    - chmod 600 ~/.ssh/id_rsa
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa.rsa
+    - chmod 600 ~/.ssh/id_rsa.rsa
     - |
-      if ! grep -q "END OPENSSH PRIVATE KEY" ~/.ssh/id_rsa; then
-        echo "" >> ~/.ssh/id_rsa
+      if ! grep -q "END OPENSSH PRIVATE KEY" ~/.ssh/id_rsa.rsa; then
+        echo "" >> ~/.ssh/id_rsa.rsa
       fi
-    - ssh-add ~/.ssh/id_rsa
+    - ssh-add ~/.ssh/id_rsa.rsa
     - ssh-keyscan -H $CONTROL_PLANE_IP >> ~/.ssh/known_hosts || true
   script:
     - cd $ANSIBLE_WORKING_DIR
@@ -115,13 +115,13 @@ deploy:
     - eval $(ssh-agent -s)
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
-    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
-    - chmod 600 ~/.ssh/id_rsa
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa.rsa
+    - chmod 600 ~/.ssh/id_rsa.rsa
     - |
-      if ! grep -q "END OPENSSH PRIVATE KEY" ~/.ssh/id_rsa; then
-        echo "" >> ~/.ssh/id_rsa
+      if ! grep -q "END OPENSSH PRIVATE KEY" ~/.ssh/id_rsa.rsa; then
+        echo "" >> ~/.ssh/id_rsa.rsa
       fi
-    - ssh-add ~/.ssh/id_rsa
+    - ssh-add ~/.ssh/id_rsa.rsa
     - ssh-keyscan -H $CONTROL_PLANE_IP >> ~/.ssh/known_hosts || true
     - |
       ssh -o StrictHostKeyChecking=no $SSH_USER@$CONTROL_PLANE_IP \
