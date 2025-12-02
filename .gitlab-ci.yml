@@ -22,6 +22,9 @@ provision:
   when: manual
   before_script:
     - apt-get update && apt-get install -y vagrant virtualbox || true
+    - mkdir -p ~/.ssh
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa
     - |
       if ! command -v vagrant &> /dev/null; then
         echo "Vagrant not available in CI. Using Terraform to generate inventory."
