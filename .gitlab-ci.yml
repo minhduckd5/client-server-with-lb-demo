@@ -21,25 +21,46 @@ provision:
   image: ubuntu:22.04
   when: manual
   before_script:
-    - apt-get update && apt-get install -y vagrant virtualbox || true
+    - apt-get update && apt-get install -y vagrant virtualbox build-essential || true
+    # Install Vagrant VMware Desktop plugin
+    - vagrant plugin install vagrant-vmware-desktop || echo "Plugin install failed, continuing..."
+    # Setup SSH
     - mkdir -p ~/.ssh
     - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
     - chmod 600 ~/.ssh/id_rsa
-    - |
-      if ! command -v vagrant &> /dev/null; then
-        echo "Vagrant not available in CI. Using Terraform to generate inventory."
-        cd $TF_WORKING_DIR
-        terraform init
-        terraform output -raw ansible_inventory > $CI_PROJECT_DIR/$ANSIBLE_INVENTORY
-      else
-        cd $VAGRANT_WORKING_DIR
-        vagrant up --provider=vmware_desktop || vagrant up
-        cd ../terraform
-        terraform init
-        terraform output -raw ansible_inventory > $CI_PROJECT_DIR/$ANSIBLE_INVENTORY
-      fi
   script:
-    - echo "VMs provisioned. Inventory generated."
+    - cd $VAGRANT_WORKING_DIR
+    - echo "Attempting to provision with Vagrant..."
+    - vagrant up --provider=vmware_desktop || echo "Vagrant provision failed (expected on SaaS runners)"
+    
+    # Generate Inventory (Static IPs based on Vagrantfile)
+    - echo "Generating Ansible inventory..."
+    - |
+      cat > $CI_PROJECT_DIR/$ANSIBLE_INVENTORY <<EOF
+      [k3s_control]
+      k3s-control-plane ansible_host=$CONTROL_PLANE_IP
+
+      [k3s_workers]
+      k3s-worker-1 ansible_host=192.168.1.201
+      k3s-worker-2 ansible_host=192.168.1.202
+
+      [k3s_nodes:children]
+      k3s_control
+      k3s_workers
+
+      [ops]
+      k3s-ops ansible_host=192.168.1.203
+
+      [monitoring]
+      k3s-monitoring ansible_host=192.168.1.204
+
+      [all:vars]
+      ansible_user=$SSH_USER
+      ansible_ssh_private_key_file=~/.ssh/id_rsa
+      ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+      EOF
+    - echo "Inventory generated:"
+    - cat $CI_PROJECT_DIR/$ANSIBLE_INVENTORY
   artifacts:
     paths:
       - $ANSIBLE_INVENTORY
@@ -83,6 +104,7 @@ configure:
 deploy:
   stage: deploy
   image: bitnami/kubectl:latest
+  when: manual
   before_script:
     - apk add --no-cache openssh-client curl
     - eval $(ssh-agent -s)
