@@ -56,7 +56,7 @@ provision:
 
       [all:vars]
       ansible_user=$SSH_USER
-      ansible_ssh_private_key_file=~/.ssh/id_rsa.rsa
+      ansible_ssh_private_key_file=~/.ssh/id_rsa
       ansible_ssh_common_args='-o StrictHostKeyChecking=no'
       EOF
     - echo "Inventory generated:"
@@ -81,13 +81,20 @@ configure:
     - eval $(ssh-agent -s)
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
-    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa.rsa
-    - chmod 600 ~/.ssh/id_rsa.rsa
     - |
-      if ! grep -q "END OPENSSH PRIVATE KEY" ~/.ssh/id_rsa.rsa; then
-        echo "" >> ~/.ssh/id_rsa.rsa
+      if [ -f "$SSH_PRIVATE_KEY" ]; then
+        cat "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+      else
+        # Replace echo with printf to safely handle newlines in CI variables
+        printf "%s\n" "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
       fi
-    - ssh-add ~/.ssh/id_rsa.rsa
+    - chmod 600 ~/.ssh/id_rsa
+    - |
+      # Ensure trailing newline exists (POSIX compliant check)
+      if [ -s ~/.ssh/id_rsa ] && [ "$(tail -c1 ~/.ssh/id_rsa | wc -l)" -eq 0 ]; then
+        echo "" >> ~/.ssh/id_rsa
+      fi
+    - ssh-add ~/.ssh/id_rsa
     - ssh-keyscan -H $CONTROL_PLANE_IP >> ~/.ssh/known_hosts || true
   script:
     - cd $ANSIBLE_WORKING_DIR
@@ -115,13 +122,20 @@ deploy:
     - eval $(ssh-agent -s)
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
-    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa.rsa
-    - chmod 600 ~/.ssh/id_rsa.rsa
     - |
-      if ! grep -q "END OPENSSH PRIVATE KEY" ~/.ssh/id_rsa.rsa; then
-        echo "" >> ~/.ssh/id_rsa.rsa
+      if [ -f "$SSH_PRIVATE_KEY" ]; then
+        cat "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+      else
+        # Replace echo with printf to safely handle newlines in CI variables
+        printf "%s\n" "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
       fi
-    - ssh-add ~/.ssh/id_rsa.rsa
+    - chmod 600 ~/.ssh/id_rsa
+    - |
+      # Ensure trailing newline exists (POSIX compliant check)
+      if [ -s ~/.ssh/id_rsa ] && [ "$(tail -c1 ~/.ssh/id_rsa | wc -l)" -eq 0 ]; then
+        echo "" >> ~/.ssh/id_rsa
+      fi
+    - ssh-add ~/.ssh/id_rsa
     - ssh-keyscan -H $CONTROL_PLANE_IP >> ~/.ssh/known_hosts || true
     - |
       ssh -o StrictHostKeyChecking=no $SSH_USER@$CONTROL_PLANE_IP \
