@@ -18,13 +18,8 @@ variables:
   SSH_SETUP_CMD: |
     mkdir -p ~/.ssh
     chmod 700 ~/.ssh
-    if [ -f "$SSH_PRIVATE_KEY" ]; then
-      cat "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
-    else
-      printf "%s\n" "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
-    fi
+    cp "$SSH_PRIVATE_KEY" ~/.ssh/id_rsa
     chmod 600 ~/.ssh/id_rsa
-    [ -s ~/.ssh/id_rsa ] && [ "$(tail -c1 ~/.ssh/id_rsa | wc -l)" -eq 0 ] && echo "" >> ~/.ssh/id_rsa
     ssh-add ~/.ssh/id_rsa
 
 # Provision VMs with Vagrant (manual approval required)
@@ -41,21 +36,11 @@ provision:
     # - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa.rsa
     # - chmod 600 ~/.ssh/id_rsa.rsa
     - eval $(ssh-agent -s)
-    # Applying the Robust SSH Logic here
-    - |
-      mkdir -p ~/.ssh
-      chmod 700 ~/.ssh
-      if [ -f "$SSH_PRIVATE_KEY" ]; then
-        cat "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
-      else
-        printf "%s\n" "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
-      fi
-      chmod 600 ~/.ssh/id_rsa
+    - eval "$SSH_SETUP_CMD"
   script:
     - cd $VAGRANT_WORKING_DIR
     - echo "Attempting to provision with Vagrant..."
     - vagrant up --provider=vmware_desktop || echo "Vagrant provision failed (expected on SaaS runners)"
-    
     # Generate Inventory (Static IPs based on Vagrantfile)
     - echo "Generating Ansible inventory..."
     - |
