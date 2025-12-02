@@ -80,30 +80,13 @@ provision:
 # Ansible configuration (K3s)
 configure:
   stage: configure
-  # image: williamyeh/ansible:alpine3
-  image: alpine:latest
+  image: python:3-alpine
   dependencies:
     - provision
   before_script:
-    - apk add --no-cache openssh-client
+    - apk add --no-cache openssh-client git build-base libffi-dev openssl-dev
+    - pip install ansible
     - eval $(ssh-agent -s)
-    # - mkdir -p ~/.ssh
-    # - chmod 700 ~/.ssh
-    # - |
-    #   if [ -f "$SSH_PRIVATE_KEY" ]; then
-    #     cat "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
-    #   else
-    #     # Replace echo with printf to safely handle newlines in CI variables
-    #     printf "%s\n" "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
-    #   fi
-    # - chmod 600 ~/.ssh/id_rsa
-    # - |
-    #   # Ensure trailing newline exists (POSIX compliant check)
-    #   if [ -s ~/.ssh/id_rsa ] && [ "$(tail -c1 ~/.ssh/id_rsa | wc -l)" -eq 0 ]; then
-    #     echo "" >> ~/.ssh/id_rsa
-    #   fi
-    # - ssh-add ~/.ssh/id_rsa
-    # - ssh-keyscan -H $CONTROL_PLANE_IP >> ~/.ssh/known_hosts || true
     - eval "$SSH_SETUP_CMD"
     - ssh-keyscan -H $CONTROL_PLANE_IP >> ~/.ssh/known_hosts || true
   script:
