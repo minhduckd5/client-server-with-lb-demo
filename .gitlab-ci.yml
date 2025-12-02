@@ -83,6 +83,10 @@ configure:
     - chmod 700 ~/.ssh
     - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
     - chmod 600 ~/.ssh/id_rsa
+    - |
+      if ! grep -q "END OPENSSH PRIVATE KEY" ~/.ssh/id_rsa; then
+        echo "" >> ~/.ssh/id_rsa
+      fi
     - ssh-add ~/.ssh/id_rsa
     - ssh-keyscan -H $CONTROL_PLANE_IP >> ~/.ssh/known_hosts || true
   script:
@@ -112,8 +116,11 @@ deploy:
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
     - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
-    - echo "" >> ~/.ssh/id_rsa
     - chmod 600 ~/.ssh/id_rsa
+    - |
+      if ! grep -q "END OPENSSH PRIVATE KEY" ~/.ssh/id_rsa; then
+        echo "" >> ~/.ssh/id_rsa
+      fi
     - ssh-add ~/.ssh/id_rsa
     - ssh-keyscan -H $CONTROL_PLANE_IP >> ~/.ssh/known_hosts || true
     - |
