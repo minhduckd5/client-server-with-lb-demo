@@ -29,6 +29,8 @@ provision:
   script:
     - Set-Location $env:VAGRANT_WORKING_DIR
     - Write-Host "Attempting to provision with Vagrant..."
+    # Install required plugin if missing
+    - 'try { vagrant plugin install vagrant-vmware-desktop } catch { Write-Warning "Plugin install check failed (ignoring if already installed): $_" }'
     - 'try { vagrant up --provider=vmware_desktop } catch { Write-Warning "Vagrant provision reported error: $_" }'
     # Generate Inventory (Static IPs based on Vagrantfile)
     - Write-Host "Initiating Local Infrastructure Provisioning..."
