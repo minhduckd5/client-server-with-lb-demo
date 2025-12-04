@@ -136,12 +136,13 @@ configure:
       mkdir -p /etc/ansible
       echo '[defaults]' > /etc/ansible/ansible.cfg
       echo 'host_key_checking = False' >> /etc/ansible/ansible.cfg
-      ansible-playbook -i inventory.ini bootstrap.yml
-      ansible-playbook -i inventory.ini k3s-install.yml
-      ansible-playbook -i inventory.ini metallb.yml --extra-vars "metallb_ip_pool_start=$env:METALLB_IP_POOL_START metallb_ip_pool_end=$env:METALLB_IP_POOL_END"
-      ansible-playbook -i inventory.ini build-images.yml
-      ansible-playbook -i inventory.ini deploy-nginx-reverse-proxy.yml
-      ansible-playbook -i inventory.ini ingress.yml
+      # MODIFIED: use absolute playbook paths to avoid any working-directory issues
+      ansible-playbook -i inventory.ini /work/infra/ansible/bootstrap.yml
+      ansible-playbook -i inventory.ini /work/infra/ansible/k3s-install.yml
+      ansible-playbook -i inventory.ini /work/infra/ansible/metallb.yml --extra-vars "metallb_ip_pool_start=$env:METALLB_IP_POOL_START metallb_ip_pool_end=$env:METALLB_IP_POOL_END"
+      ansible-playbook -i inventory.ini /work/infra/ansible/build-images.yml
+      ansible-playbook -i inventory.ini /work/infra/ansible/deploy-nginx-reverse-proxy.yml
+      ansible-playbook -i inventory.ini /work/infra/ansible/ingress.yml
       "@
       Set-Content -Path "run_ansible.sh" -Value $ScriptContent -Encoding ascii
     
