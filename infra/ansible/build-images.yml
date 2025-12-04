@@ -20,8 +20,8 @@
 
     - name: Save Docker image to tarball
       command: docker save server:latest -o /vagrant/server-image.tar
-      args:
-        creates: /vagrant/server-image.tar # Remove this line if you want to force overwrite on every run
+      # Removed 'creates' to force image update on every run
+
 
 - name: Import Image on All Nodes
   hosts: k3s_nodes

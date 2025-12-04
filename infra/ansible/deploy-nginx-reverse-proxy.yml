@@ -59,14 +59,19 @@
         - "{{ k8s_manifests_dir }}/deployment-server1.yaml"
         - "{{ k8s_manifests_dir }}/deployment-server2.yaml"
         - "{{ k8s_manifests_dir }}/deployment-server3.yaml"
-      when: backend_mode == 'k8s' and backend_deployments_check.rc != 0
+      when: backend_mode == 'k8s'
 
-    - name: Deploy backend deployments if not present
+    - name: Deploy backend deployments
       shell: |
         kubectl --kubeconfig={{ kubeconfig_path }} apply -f /tmp/deployment-server1.yaml
         kubectl --kubeconfig={{ kubeconfig_path }} apply -f /tmp/deployment-server2.yaml
         kubectl --kubeconfig={{ kubeconfig_path }} apply -f /tmp/deployment-server3.yaml
-      when: backend_mode == 'k8s' and backend_deployments_check.rc != 0
+      when: backend_mode == 'k8s'
+
+    - name: Restart backend deployments to pick up new images
+      shell: |
+        kubectl --kubeconfig={{ kubeconfig_path }} rollout restart deployment -n {{ k8s_namespace }} server1 server2 server3
+      when: backend_mode == 'k8s'
 
     - name: Check if backend services are deployed
       shell: kubectl --kubeconfig={{ kubeconfig_path }} get svc -n {{ k8s_namespace }} server1-service server2-service server3-service
@@ -100,7 +105,7 @@
             kubectl --kubeconfig={{ kubeconfig_path }} wait --namespace {{ k8s_namespace }} --for=condition=ready pod -l app=server3 --timeout=120s
       rescue:
         - name: Get backend pod status on failure
-          shell: kubectl --kubeconfig={{ kubeconfig_path }} get pods -n {{ k8s_namespace }} -l app in (server1,server2,server3)
+          shell: kubectl --kubeconfig={{ kubeconfig_path }} get pods -n {{ k8s_namespace }} -l 'app in (server1,server2,server3)'
           register: backend_pod_status
           ignore_errors: true
 
@@ -109,7 +114,7 @@
             var: backend_pod_status.stdout_lines
 
         - name: Describe backend pods on failure
-          shell: kubectl --kubeconfig={{ kubeconfig_path }} describe pods -n {{ k8s_namespace }} -l app in (server1,server2,server3)
+          shell: kubectl --kubeconfig={{ kubeconfig_path }} describe pods -n {{ k8s_namespace }} -l 'app in (server1,server2,server3)'
           register: backend_pod_describe
           ignore_errors: true
 
