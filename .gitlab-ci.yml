@@ -203,10 +203,16 @@ deploy:
     - local-dev-pc
   script:
     - Write-Host "Retrieving Kubeconfig from Control Plane..."
-    
-    # 1. Fetch kubeconfig using Windows OpenSSH
-    # We use the raw SSH key file provided by GitLab
-    - scp -o StrictHostKeyChecking=no -i $env:SSH_PRIVATE_KEY ubuntu@${env:CONTROL_PLANE_IP}:~/.kube/config ./kubeconfig_raw
+
+    # 0. Prepare SSH key with proper Windows ACLs (reuse Vagrant key logic)
+    - $MachineKey = "$env:VAGRANT_WORKING_DIR\.vagrant\machines\k3s-control-plane\vmware_desktop\private_key"
+    - $InsecureKey = "$env:USERPROFILE\.vagrant.d\insecure_private_key"
+    - 'if (Test-Path $MachineKey) { Write-Host "Using machine-specific private key for deploy: $MachineKey"; Copy-Item $MachineKey -Destination "kube_id_rsa" -Force } elseif (Test-Path $InsecureKey) { Write-Host "Using global insecure private key for deploy: $InsecureKey"; Copy-Item $InsecureKey -Destination "kube_id_rsa" -Force } else { Write-Error "No valid SSH private key found for Vagrant VMs (deploy stage)."; exit 1 }'
+    - 'icacls ".\kube_id_rsa" /inheritance:r | Out-Null'
+    - 'icacls ".\kube_id_rsa" /grant:r "$($env:USERNAME):(R)" | Out-Null'
+
+    # 1. Fetch kubeconfig using Windows OpenSSH (connect as vagrant user)
+    - scp -o StrictHostKeyChecking=no -i ".\kube_id_rsa" vagrant@${env:CONTROL_PLANE_IP}:/home/vagrant/.kube/config ./kubeconfig_raw
     
     # 2. Adjust Kubeconfig server IP (It might say 127.0.0.1 inside the VM)
     - $Config = Get-Content ./kubeconfig_raw
@@ -221,6 +227,7 @@ deploy:
         -w /work `
         bitnami/kubectl:latest `
         apply -f k8s/
+    - Remove-Item "kube_id_rsa" -ErrorAction SilentlyContinue
   dependencies:
     - configure
   only:
