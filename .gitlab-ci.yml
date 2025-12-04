@@ -13,7 +13,7 @@ variables:
   ANSIBLE_WORKING_DIR: infra/ansible
   ANSIBLE_INVENTORY: infra/ansible/inventory.ini
   CONTROL_PLANE_IP: "192.168.1.200"
-  SSH_USER: "ubuntu"
+  SSH_USER: "vagrant"
 # PowerShell Error Handling: Stop pipeline immediately if a command fails
   ErrorActionPreference: "Stop"
   # Prevent git clean from deleting running VM files
