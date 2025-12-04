@@ -33,12 +33,6 @@
         kubectl --kubeconfig={{ kubeconfig_path }} apply -f -
     # --- END MODIFICATION ---
 
-    - name: Check if Ingress Controller is already installed
-      shell: kubectl --kubeconfig={{ kubeconfig_path }} get namespace {{ ingress_namespace }}
-      register: ingress_check
-      ignore_errors: true
-      changed_when: false
-
     - name: Create Ingress Controller manifest with MetalLB
       template:
         src: nginx-ingress-metallb.yaml.j2
@@ -47,7 +41,6 @@
 
     - name: Apply Ingress Controller manifest
       shell: kubectl --kubeconfig={{ kubeconfig_path }} apply -f /tmp/nginx-ingress.yaml
-      when: ingress_check.rc != 0
       register: ingress_apply
 
     - name: Wait for Ingress Controller deployment rollout (max 60s)
