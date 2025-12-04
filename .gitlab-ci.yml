@@ -115,34 +115,61 @@ configure:
     #                ansible-playbook -i inventory.ini monitoring.yml"
     - |
       $ScriptContent = @"
+      # --- START MODIFICATION ---
+      # Strong debugging + safety for Ansible pipeline
+      set -euo pipefail
+      
+      echo "=== DEBUG: Environment inside container ==="
+      echo "PWD: \$(pwd)"
+      echo "Listing /work:"
+      ls -R /work || echo "ls /work failed"
+      
+      echo "=== DEBUG: Installing base tooling ==="
       apk add --no-cache openssh-client build-base libffi-dev openssl-dev
       mkdir -p /root/.ssh
       cp /tmp/ssh_key /root/.ssh/insecure_private_key
       chmod 600 /root/.ssh/insecure_private_key
       
       echo "--- DEBUG: SSH Key Fingerprint ---"
-      ssh-keygen -lf /root/.ssh/insecure_private_key
+      ssh-keygen -lf /root/.ssh/insecure_private_key || echo "ssh-keygen failed"
       
-      echo "--- DEBUG: Ansible Inventory ---"
-      cat inventory.ini
+      echo "--- DEBUG: Ansible Inventory (infra/ansible/inventory.ini) ---"
+      cat /work/infra/ansible/inventory.ini || echo "inventory not found at expected path"
       
       echo "--- DEBUG: Testing SSH Connection to Control Plane ---"
       # We explicitly use the user from env var to catch mismatches
       ssh -o StrictHostKeyChecking=no -i /root/.ssh/insecure_private_key -vvv $env:SSH_USER@$env:CONTROL_PLANE_IP 'id' || echo "Manual SSH Test Failed"
       
       eval \$(ssh-agent -s)
-      ssh-add /root/.ssh/insecure_private_key
+      ssh-add /root/.ssh/insecure_private_key || echo "ssh-add failed"
+      
+      echo "=== DEBUG: Installing Ansible ==="
       pip install ansible
       mkdir -p /etc/ansible
       echo '[defaults]' > /etc/ansible/ansible.cfg
       echo 'host_key_checking = False' >> /etc/ansible/ansible.cfg
+      
+      run_play() {
+        name="$1"
+        shift
+        echo "=== DEBUG: START playbook: \$name ==="
+        echo "Command: ansible-playbook \$@"
+        if ! ansible-playbook "\$@"; then
+          echo "=== DEBUG: PLAYBOOK FAILED: \$name ==="
+          exit 1
+        fi
+        echo "=== DEBUG: END playbook: \$name ==="
+      }
+      
       # MODIFIED: use absolute playbook paths to avoid any working-directory issues
-      ansible-playbook -i inventory.ini /work/infra/ansible/bootstrap.yml
-      ansible-playbook -i inventory.ini /work/infra/ansible/k3s-install.yml
-      ansible-playbook -i inventory.ini /work/infra/ansible/metallb.yml --extra-vars "metallb_ip_pool_start=$env:METALLB_IP_POOL_START metallb_ip_pool_end=$env:METALLB_IP_POOL_END"
-      ansible-playbook -i inventory.ini /work/infra/ansible/build-images.yml
-      ansible-playbook -i inventory.ini /work/infra/ansible/deploy-nginx-reverse-proxy.yml
-      ansible-playbook -i inventory.ini /work/infra/ansible/ingress.yml
+      run_play "bootstrap" -i /work/infra/ansible/inventory.ini /work/infra/ansible/bootstrap.yml
+      run_play "k3s-install" -i /work/infra/ansible/inventory.ini /work/infra/ansible/k3s-install.yml
+      run_play "metallb" -i /work/infra/ansible/inventory.ini /work/infra/ansible/metallb.yml --extra-vars "metallb_ip_pool_start=$env:METALLB_IP_POOL_START metallb_ip_pool_end=$env:METALLB_IP_POOL_END"
+      run_play "build-images" -i /work/infra/ansible/inventory.ini /work/infra/ansible/build-images.yml
+      run_play "deploy-nginx-reverse-proxy" -i /work/infra/ansible/inventory.ini /work/infra/ansible/deploy-nginx-reverse-proxy.yml
+      run_play "ingress" -i /work/infra/ansible/inventory.ini /work/infra/ansible/ingress.yml
+      echo "=== DEBUG: ALL PLAYBOOKS COMPLETED SUCCESSFULLY ==="
+      # --- END MODIFICATION ---
       "@
       Set-Content -Path "run_ansible.sh" -Value $ScriptContent -Encoding ascii
     
