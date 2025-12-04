@@ -86,16 +86,7 @@ configure:
     - $MachineKey = "$env:VAGRANT_WORKING_DIR\.vagrant\machines\k3s-control-plane\vmware_desktop\private_key"
     - $InsecureKey = "$env:USERPROFILE\.vagrant.d\insecure_private_key"
     
-    - if (Test-Path $MachineKey) {
-        Write-Host "Using machine-specific private key: $MachineKey"
-        Copy-Item $MachineKey -Destination "id_rsa_temp"
-      } elseif (Test-Path $InsecureKey) {
-        Write-Host "Using global insecure private key: $InsecureKey"
-        Copy-Item $InsecureKey -Destination "id_rsa_temp"
-      } else {
-        Write-Error "No valid SSH private key found for Vagrant VMs."
-        exit 1
-      }
+    - 'if (Test-Path $MachineKey) { Write-Host "Using machine-specific private key: $MachineKey"; Copy-Item $MachineKey -Destination "id_rsa_temp" } elseif (Test-Path $InsecureKey) { Write-Host "Using global insecure private key: $InsecureKey"; Copy-Item $InsecureKey -Destination "id_rsa_temp" } else { Write-Error "No valid SSH private key found for Vagrant VMs."; exit 1 }'
 
     # 2. Execute Ansible inside a Linux Container
     # We mount the current directory (${PWD}) to /work inside the container
