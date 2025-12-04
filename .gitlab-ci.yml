@@ -136,7 +136,7 @@ configure:
       echo 'host_key_checking = False' >> /etc/ansible/ansible.cfg
       ansible-playbook -i inventory.ini bootstrap.yml
       ansible-playbook -i inventory.ini k3s-install.yml
-      ansible-playbook -i inventory.ini metallb.yml --extra-vars 'metallb_ip_pool_start=$env:METALLB_IP_POOL_START metallb_ip_pool_end=$env:METALLB_IP_POOL_END'
+      ansible-playbook -i inventory.ini metallb.yml --extra-vars "metallb_ip_pool_start=$env:METALLB_IP_POOL_START metallb_ip_pool_end=$env:METALLB_IP_POOL_END"
       ansible-playbook -i inventory.ini build-images.yml
       ansible-playbook -i inventory.ini deploy-nginx-reverse-proxy.yml
       ansible-playbook -i inventory.ini ingress.yml
