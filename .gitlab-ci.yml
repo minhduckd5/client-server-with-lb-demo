@@ -87,27 +87,57 @@ configure:
 
     # 2. Execute Ansible inside a Linux Container
     # We mount the current directory (${PWD}) to /work inside the container
+    # - |
+    #       docker run --rm `
+    #         -v "${PWD}:/work" `
+    #         -v "${PWD}\id_rsa_temp:/tmp/ssh_key" `
+    #         -w /work/infra/ansible `
+    #         python:3-alpine `
+    #         sh -c "apk add --no-cache openssh-client build-base libffi-dev openssl-dev && \
+    #                mkdir -p /root/.ssh && \
+    #                cp /tmp/ssh_key /root/.ssh/id_rsa && \
+    #                chmod 600 /root/.ssh/id_rsa && \
+    #                eval \$(ssh-agent -s) && \
+    #                ssh-add /root/.ssh/id_rsa && \
+    #                pip install ansible && \
+    #                mkdir -p /etc/ansible && echo '[defaults]' > /etc/ansible/ansible.cfg && echo 'host_key_checking = False' >> /etc/ansible/ansible.cfg && \
+    #                ansible-playbook -i inventory.ini bootstrap.yml && \
+    #                ansible-playbook -i inventory.ini k3s-install.yml && \
+    #                ansible-playbook -i inventory.ini metallb.yml --extra-vars 'metallb_ip_pool_start=$env:METALLB_IP_POOL_START metallb_ip_pool_end=$env:METALLB_IP_POOL_END' && \
+    #                ansible-playbook -i inventory.ini build-images.yml && \
+    #                ansible-playbook -i inventory.ini deploy-nginx-reverse-proxy.yml && \
+    #                ansible-playbook -i inventory.ini ingress.yml && \
+    #                ansible-playbook -i inventory.ini monitoring.yml"
+        - |
+      $ScriptContent = @"
+      apk add --no-cache openssh-client build-base libffi-dev openssl-dev
+      mkdir -p /root/.ssh
+      cp /tmp/ssh_key /root/.ssh/id_rsa
+      chmod 600 /root/.ssh/id_rsa
+      eval \$(ssh-agent -s)
+      ssh-add /root/.ssh/id_rsa
+      pip install ansible
+      mkdir -p /etc/ansible
+      echo '[defaults]' > /etc/ansible/ansible.cfg
+      echo 'host_key_checking = False' >> /etc/ansible/ansible.cfg
+      ansible-playbook -i inventory.ini bootstrap.yml
+      ansible-playbook -i inventory.ini k3s-install.yml
+      ansible-playbook -i inventory.ini metallb.yml --extra-vars 'metallb_ip_pool_start=$env:METALLB_IP_POOL_START metallb_ip_pool_end=$env:METALLB_IP_POOL_END'
+      ansible-playbook -i inventory.ini build-images.yml
+      ansible-playbook -i inventory.ini deploy-nginx-reverse-proxy.yml
+      ansible-playbook -i inventory.ini ingress.yml
+      ansible-playbook -i inventory.ini monitoring.yml
+      "@
+      Set-Content -Path "run_ansible.sh" -Value $ScriptContent -Encoding ascii
+    
     - |
-          docker run --rm `
-            -v "${PWD}:/work" `
-            -v "${PWD}\id_rsa_temp:/tmp/ssh_key" `
-            -w /work/infra/ansible `
-            python:3-alpine `
-            sh -c "apk add --no-cache openssh-client build-base libffi-dev openssl-dev && \
-                   mkdir -p /root/.ssh && \
-                   cp /tmp/ssh_key /root/.ssh/id_rsa && \
-                   chmod 600 /root/.ssh/id_rsa && \
-                   eval \$(ssh-agent -s) && \
-                   ssh-add /root/.ssh/id_rsa && \
-                   pip install ansible && \
-                   mkdir -p /etc/ansible && echo '[defaults]' > /etc/ansible/ansible.cfg && echo 'host_key_checking = False' >> /etc/ansible/ansible.cfg && \
-                   ansible-playbook -i inventory.ini bootstrap.yml && \
-                   ansible-playbook -i inventory.ini k3s-install.yml && \
-                   ansible-playbook -i inventory.ini metallb.yml --extra-vars 'metallb_ip_pool_start=$env:METALLB_IP_POOL_START metallb_ip_pool_end=$env:METALLB_IP_POOL_END' && \
-                   ansible-playbook -i inventory.ini build-images.yml && \
-                   ansible-playbook -i inventory.ini deploy-nginx-reverse-proxy.yml && \
-                   ansible-playbook -i inventory.ini ingress.yml && \
-                   ansible-playbook -i inventory.ini monitoring.yml"
+      docker run --rm `
+        -v "${PWD}:/work" `
+        -v "${PWD}\id_rsa_temp:/tmp/ssh_key" `
+        -v "${PWD}\run_ansible.sh:/work/run_ansible.sh" `
+        -w /work/infra/ansible `
+        python:3-alpine `
+        sh /work/run_ansible.sh
             
         # Note: Replace 'site.yml' above with your specific playbooks if you run them individually
         # e.g., "ansible-playbook -i inventory.ini bootstrap.yml && ansible-playbook -i inventory.ini k3s-install.yml ..."
