@@ -55,7 +55,7 @@ provision:
 
       [all:vars]
       ansible_user=$env:SSH_USER
-      ansible_ssh_private_key_file=/root/.ssh/id_rsa
+      ansible_ssh_private_key_file=~/.ssh/insecure_private_key
       ansible_ssh_common_args='-o StrictHostKeyChecking=no'
       "@
       Set-Content -Path $InventoryFile -Value $Content
@@ -82,11 +82,20 @@ configure:
     - Write-Host "Preparing Transient Ansible Environment..."
         
     # 1. Stage the SSH Key for Docker mounting
-    # Use the local Vagrant Insecure Key because we just provisioned these VMs locally.
-    # The CI Variable SSH_PRIVATE_KEY is ignored in favor of the actual key used by Vagrant.
-    - $VagrantKey = "$env:USERPROFILE\.vagrant.d\insecure_private_key"
-    - if (-not (Test-Path $VagrantKey)) { Write-Error "Vagrant private key not found at $VagrantKey"; exit 1 }
-    - Copy-Item $VagrantKey -Destination "id_rsa_temp"
+    # Try machine-specific key first (Vagrant often rotates keys), then fallback to insecure key
+    - $MachineKey = "$env:VAGRANT_WORKING_DIR\.vagrant\machines\k3s-control-plane\vmware_desktop\private_key"
+    - $InsecureKey = "$env:USERPROFILE\.vagrant.d\insecure_private_key"
+    
+    - if (Test-Path $MachineKey) {
+        Write-Host "Using machine-specific private key: $MachineKey"
+        Copy-Item $MachineKey -Destination "id_rsa_temp"
+      } elseif (Test-Path $InsecureKey) {
+        Write-Host "Using global insecure private key: $InsecureKey"
+        Copy-Item $InsecureKey -Destination "id_rsa_temp"
+      } else {
+        Write-Error "No valid SSH private key found for Vagrant VMs."
+        exit 1
+      }
 
     # 2. Execute Ansible inside a Linux Container
     # We mount the current directory (${PWD}) to /work inside the container
@@ -115,10 +124,10 @@ configure:
       $ScriptContent = @"
       apk add --no-cache openssh-client build-base libffi-dev openssl-dev
       mkdir -p /root/.ssh
-      cp /tmp/ssh_key /root/.ssh/id_rsa
-      chmod 600 /root/.ssh/id_rsa
+      cp /tmp/ssh_key /root/.ssh/insecure_private_key
+      chmod 600 /root/.ssh/insecure_private_key
       eval \$(ssh-agent -s)
-      ssh-add /root/.ssh/id_rsa
+      ssh-add /root/.ssh/insecure_private_key
       pip install ansible
       mkdir -p /etc/ansible
       echo '[defaults]' > /etc/ansible/ansible.cfg
@@ -147,6 +156,7 @@ configure:
 
         # 3. Cleanup
     - Remove-Item "id_rsa_temp" -ErrorAction SilentlyContinue
+    - Remove-Item "run_ansible.sh" -ErrorAction SilentlyContinue
   only:
     - main
     - develop
