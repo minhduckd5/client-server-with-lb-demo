@@ -132,35 +132,31 @@
         var: pre_wait_pod_status.stdout_lines
       when: backend_mode == 'k8s'
 
-    - block:
-        - name: Wait for backend pods to be ready
-          shell: |
-            kubectl --kubeconfig={{ kubeconfig_path }} wait --namespace {{ k8s_namespace }} --for=condition=ready pod -l app=server1 --timeout=120s
-            kubectl --kubeconfig={{ kubeconfig_path }} wait --namespace {{ k8s_namespace }} --for=condition=ready pod -l app=server2 --timeout=120s
-            kubectl --kubeconfig={{ kubeconfig_path }} wait --namespace {{ k8s_namespace }} --for=condition=ready pod -l app=server3 --timeout=120s
-      rescue:
-        - name: Get backend pod status on failure
-          shell: kubectl --kubeconfig={{ kubeconfig_path }} get pods -n {{ k8s_namespace }} -l 'app in (server1,server2,server3)'
-          register: backend_pod_status
-          ignore_errors: true
-
-        - name: Display backend pod status
-          debug:
-            var: backend_pod_status.stdout_lines
-
-        - name: Describe backend pods on failure
-          shell: kubectl --kubeconfig={{ kubeconfig_path }} describe pods -n {{ k8s_namespace }} -l 'app in (server1,server2,server3)'
-          register: backend_pod_describe
-          ignore_errors: true
-
-        - name: Display backend pod descriptions
-          debug:
-            var: backend_pod_describe.stdout_lines
-
-        - name: Fail playbook due to backend pods not ready
-          fail:
-            msg: "Backend pods (server1/server2/server3) failed to become ready. Check logs above for details."
+    - name: Wait for backend pods to be ready (extended loop with debug)
+      shell: |
+        for i in {1..12}; do
+          kubectl --kubeconfig={{ kubeconfig_path }} get pods -n {{ k8s_namespace }}
+          if kubectl --kubeconfig={{ kubeconfig_path }} wait --namespace {{ k8s_namespace }} --for=condition=ready pod -l app=server1 --timeout=5s && \
+             kubectl --kubeconfig={{ kubeconfig_path }} wait --namespace {{ k8s_namespace }} --for=condition=ready pod -l app=server2 --timeout=5s && \
+             kubectl --kubeconfig={{ kubeconfig_path }} wait --namespace {{ k8s_namespace }} --for=condition=ready pod -l app=server3 --timeout=5s; then
+            exit 0
+          fi
+          echo "Waiting for pods to be ready... ($i/12)"
+          sleep 5
+        done
+        exit 1
+      register: wait_result
+      ignore_errors: true
       when: backend_mode == 'k8s'
+
+    - name: Describe failing backend pods (if wait failed)
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} describe pods -n {{ k8s_namespace }} -l 'app in (server1,server2,server3)'
+      when: backend_mode == 'k8s' and wait_result.rc != 0
+
+    - name: Fail if backend pods are not ready
+      fail:
+        msg: "Backend pods failed to become ready. Check logs above."
+      when: backend_mode == 'k8s' and wait_result.rc != 0
 
     - name: Ensure openssl is installed
       package:
@@ -198,40 +194,57 @@
       shell: kubectl --kubeconfig={{ kubeconfig_path }} apply -f /tmp/deployment-nginx.yaml
       register: nginx_deploy
 
-    - block:
-        - name: Wait for nginx reverse proxy pods to be ready
-          shell: kubectl --kubeconfig={{ kubeconfig_path }} wait --namespace {{ k8s_namespace }} --for=condition=ready pod -l app=nginx-reverse-proxy --timeout=10s
-      rescue:
-        - name: Get pod status on failure
-          shell: kubectl --kubeconfig={{ kubeconfig_path }} get pods -n {{ k8s_namespace }}
-          register: pod_status
-          ignore_errors: true
-        
-        - name: Display pod status
-          debug:
-            var: pod_status.stdout_lines
+    - name: Wait for nginx reverse proxy pods to be ready
+      shell: |
+        for i in {1..12}; do
+          kubectl --kubeconfig={{ kubeconfig_path }} get pods -n {{ k8s_namespace }} -l app=nginx-reverse-proxy
+          if kubectl --kubeconfig={{ kubeconfig_path }} wait --namespace {{ k8s_namespace }} --for=condition=ready pod -l app=nginx-reverse-proxy --timeout=5s; then
+            exit 0
+          fi
+          echo "Waiting for nginx reverse proxy... ($i/12)"
+          sleep 5
+        done
+        exit 1
+      register: nginx_wait_result
+      ignore_errors: true
 
-        - name: Get pod logs on failure
-          shell: kubectl --kubeconfig={{ kubeconfig_path }} logs -n {{ k8s_namespace }} -l app=nginx-reverse-proxy --tail=50
-          register: pod_logs
-          ignore_errors: true
+    - name: Get pod status on failure
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} get pods -n {{ k8s_namespace }}
+      when: nginx_wait_result.rc != 0
+      register: pod_status
+      ignore_errors: true
 
-        - name: Display pod logs
-          debug:
-            var: pod_logs.stdout_lines
+    - name: Display pod status
+      debug:
+        var: pod_status.stdout_lines
+      when: nginx_wait_result.rc != 0
 
-        - name: Describe pods on failure
-          shell: kubectl --kubeconfig={{ kubeconfig_path }} describe pods -n {{ k8s_namespace }} -l app=nginx-reverse-proxy
-          register: pod_describe
-          ignore_errors: true
+    - name: Get pod logs on failure
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} logs -n {{ k8s_namespace }} -l app=nginx-reverse-proxy --tail=50
+      when: nginx_wait_result.rc != 0
+      register: pod_logs
+      ignore_errors: true
 
-        - name: Display pod description
-          debug:
-            var: pod_describe.stdout_lines
+    - name: Display pod logs
+      debug:
+        var: pod_logs.stdout_lines
+      when: nginx_wait_result.rc != 0
 
-        - name: Fail the playbook
-          fail:
-            msg: "Nginx reverse proxy pods failed to become ready. Check logs above for details."
+    - name: Describe pods on failure
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} describe pods -n {{ k8s_namespace }} -l app=nginx-reverse-proxy
+      when: nginx_wait_result.rc != 0
+      register: pod_describe
+      ignore_errors: true
+
+    - name: Display pod description
+      debug:
+        var: pod_describe.stdout_lines
+      when: nginx_wait_result.rc != 0
+
+    - name: Fail the playbook
+      fail:
+        msg: "Nginx reverse proxy pods failed to become ready. Check logs above for details."
+      when: nginx_wait_result.rc != 0
 
     - name: Copy nginx reverse proxy service manifest
       copy:
