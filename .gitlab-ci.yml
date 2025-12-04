@@ -150,15 +150,16 @@ configure:
       echo 'host_key_checking = False' >> /etc/ansible/ansible.cfg
       
       run_play() {
-        name="$1"
+        # MODIFIED: escape \$ so PowerShell does not eat shell positional params
+        name="`$1"
         shift
-        echo "=== DEBUG: START playbook: \$name ==="
-        echo "Command: ansible-playbook \$@"
-        if ! ansible-playbook "\$@"; then
-          echo "=== DEBUG: PLAYBOOK FAILED: \$name ==="
+        echo "=== DEBUG: START playbook: `$name ==="
+        echo "Command: ansible-playbook `$@"
+        if ! ansible-playbook "`$@"; then
+          echo "=== DEBUG: PLAYBOOK FAILED: `$name ==="
           exit 1
         fi
-        echo "=== DEBUG: END playbook: \$name ==="
+        echo "=== DEBUG: END playbook: `$name ==="
       }
       
       # MODIFIED: use absolute playbook paths to avoid any working-directory issues
