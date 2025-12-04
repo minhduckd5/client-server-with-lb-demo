@@ -132,30 +132,51 @@
         var: pre_wait_pod_status.stdout_lines
       when: backend_mode == 'k8s'
 
-    - name: Wait for backend pods to be ready (extended loop with debug)
+    - name: Wait for backend *deployments* to complete rollout (max 60s each)
       shell: |
-        for i in {1..12}; do
-          kubectl --kubeconfig={{ kubeconfig_path }} get pods -n {{ k8s_namespace }}
-          if kubectl --kubeconfig={{ kubeconfig_path }} wait --namespace {{ k8s_namespace }} --for=condition=ready pod -l app=server1 --timeout=5s && \
-             kubectl --kubeconfig={{ kubeconfig_path }} wait --namespace {{ k8s_namespace }} --for=condition=ready pod -l app=server2 --timeout=5s && \
-             kubectl --kubeconfig={{ kubeconfig_path }} wait --namespace {{ k8s_namespace }} --for=condition=ready pod -l app=server3 --timeout=5s; then
-            exit 0
-          fi
-          echo "Waiting for pods to be ready... ($i/12)"
-          sleep 5
-        done
-        exit 1
+        set -e
+        kubectl --kubeconfig={{ kubeconfig_path }} rollout status deployment/server1 -n {{ k8s_namespace }} --timeout=60s
+        kubectl --kubeconfig={{ kubeconfig_path }} rollout status deployment/server2 -n {{ k8s_namespace }} --timeout=60s
+        kubectl --kubeconfig={{ kubeconfig_path }} rollout status deployment/server3 -n {{ k8s_namespace }} --timeout=60s
       register: wait_result
       ignore_errors: true
       when: backend_mode == 'k8s'
 
-    - name: Describe failing backend pods (if wait failed)
+    - name: Get backend pod status on rollout failure
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} get pods -n {{ k8s_namespace }} -o wide
+      when: backend_mode == 'k8s' and wait_result.rc != 0
+      register: backend_pods_status
+      ignore_errors: true
+
+    - name: Debug backend pod status on rollout failure
+      debug:
+        var: backend_pods_status.stdout_lines
+      when: backend_mode == 'k8s' and wait_result.rc != 0
+
+    - name: Get backend pod logs on rollout failure
+      shell: |
+        echo "---- server1 logs ----"
+        kubectl --kubeconfig={{ kubeconfig_path }} logs -n {{ k8s_namespace }} -l app=server1 --tail=50 || true
+        echo "---- server2 logs ----"
+        kubectl --kubeconfig={{ kubeconfig_path }} logs -n {{ k8s_namespace }} -l app=server2 --tail=50 || true
+        echo "---- server3 logs ----"
+        kubectl --kubeconfig={{ kubeconfig_path }} logs -n {{ k8s_namespace }} -l app=server3 --tail=50 || true
+      when: backend_mode == 'k8s' and wait_result.rc != 0
+      register: backend_pods_logs
+      ignore_errors: true
+
+    - name: Debug backend pod logs on rollout failure
+      debug:
+        var: backend_pods_logs.stdout_lines
+      when: backend_mode == 'k8s' and wait_result.rc != 0
+
+    - name: Describe backend pods if rollout failed
       shell: kubectl --kubeconfig={{ kubeconfig_path }} describe pods -n {{ k8s_namespace }} -l 'app in (server1,server2,server3)'
       when: backend_mode == 'k8s' and wait_result.rc != 0
 
-    - name: Fail if backend pods are not ready
+    - name: Fail if backend deployments not successfully rolled out
       fail:
-        msg: "Backend pods failed to become ready. Check logs above."
+        msg: "Backend deployments (server1/server2/server3) failed to roll out successfully. Check status, logs and describe output above."
       when: backend_mode == 'k8s' and wait_result.rc != 0
 
     - name: Ensure openssl is installed

@@ -29,9 +29,43 @@
       when: ingress_check.rc != 0
       register: ingress_apply
 
-    - name: Wait for Ingress Controller to be ready
-      shell: kubectl --kubeconfig={{ kubeconfig_path }} wait --namespace {{ ingress_namespace }} --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=300s
+    - name: Wait for Ingress Controller deployment rollout (max 60s)
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} rollout status deployment/ingress-nginx-controller -n {{ ingress_namespace }} --timeout=60s
+      register: ingress_wait
       ignore_errors: true
+
+    - name: Get Ingress Controller pod status on rollout failure
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} get pods -n {{ ingress_namespace }} -o wide
+      when: ingress_wait.rc is defined and ingress_wait.rc != 0
+      register: ingress_pods_status
+      ignore_errors: true
+
+    - name: Debug Ingress Controller pod status on rollout failure
+      debug:
+        var: ingress_pods_status.stdout_lines
+      when: ingress_wait.rc is defined and ingress_wait.rc != 0
+
+    - name: Get Ingress Controller pod logs on rollout failure
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} logs -n {{ ingress_namespace }} -l app.kubernetes.io/component=controller --tail=100
+      when: ingress_wait.rc is defined and ingress_wait.rc != 0
+      register: ingress_pods_logs
+      ignore_errors: true
+
+    - name: Debug Ingress Controller pod logs on rollout failure
+      debug:
+        var: ingress_pods_logs.stdout_lines
+      when: ingress_wait.rc is defined and ingress_wait.rc != 0
+
+    - name: Describe Ingress Controller pods if rollout failed
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} describe pods -n {{ ingress_namespace }} -l app.kubernetes.io/component=controller
+      when: ingress_wait.rc is defined and ingress_wait.rc != 0
+      register: ingress_pods_describe
+      ignore_errors: true
+
+    - name: Debug Ingress Controller pod description
+      debug:
+        var: ingress_pods_describe.stdout_lines
+      when: ingress_wait.rc is defined and ingress_wait.rc != 0
 
     - name: Get Ingress Controller LoadBalancer IP
       shell: kubectl --kubeconfig={{ kubeconfig_path }} get svc -n {{ ingress_namespace }} ingress-nginx-controller -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
