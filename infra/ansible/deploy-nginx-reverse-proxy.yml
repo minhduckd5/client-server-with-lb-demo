@@ -92,11 +92,34 @@
         kubectl --kubeconfig={{ kubeconfig_path }} apply -f /tmp/service-server3.yaml
       when: backend_mode == 'k8s' and backend_services_check.rc != 0
 
-    - name: Wait for backend pods to be ready
-      shell: |
-        kubectl --kubeconfig={{ kubeconfig_path }} wait --namespace {{ k8s_namespace }} --for=condition=ready pod -l app=server1 --timeout=120s
-        kubectl --kubeconfig={{ kubeconfig_path }} wait --namespace {{ k8s_namespace }} --for=condition=ready pod -l app=server2 --timeout=120s
-        kubectl --kubeconfig={{ kubeconfig_path }} wait --namespace {{ k8s_namespace }} --for=condition=ready pod -l app=server3 --timeout=120s
+    - block:
+        - name: Wait for backend pods to be ready
+          shell: |
+            kubectl --kubeconfig={{ kubeconfig_path }} wait --namespace {{ k8s_namespace }} --for=condition=ready pod -l app=server1 --timeout=120s
+            kubectl --kubeconfig={{ kubeconfig_path }} wait --namespace {{ k8s_namespace }} --for=condition=ready pod -l app=server2 --timeout=120s
+            kubectl --kubeconfig={{ kubeconfig_path }} wait --namespace {{ k8s_namespace }} --for=condition=ready pod -l app=server3 --timeout=120s
+      rescue:
+        - name: Get backend pod status on failure
+          shell: kubectl --kubeconfig={{ kubeconfig_path }} get pods -n {{ k8s_namespace }} -l app in (server1,server2,server3)
+          register: backend_pod_status
+          ignore_errors: true
+
+        - name: Display backend pod status
+          debug:
+            var: backend_pod_status.stdout_lines
+
+        - name: Describe backend pods on failure
+          shell: kubectl --kubeconfig={{ kubeconfig_path }} describe pods -n {{ k8s_namespace }} -l app in (server1,server2,server3)
+          register: backend_pod_describe
+          ignore_errors: true
+
+        - name: Display backend pod descriptions
+          debug:
+            var: backend_pod_describe.stdout_lines
+
+        - name: Fail playbook due to backend pods not ready
+          fail:
+            msg: "Backend pods (server1/server2/server3) failed to become ready. Check logs above for details."
       when: backend_mode == 'k8s'
 
     - name: Ensure openssl is installed
