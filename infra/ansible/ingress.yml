@@ -56,6 +56,40 @@
         var: ingress_pods_logs.stdout_lines
       when: ingress_wait.rc is defined and ingress_wait.rc != 0
 
+    # MODIFIED: extra deep-dive diagnostics for non-ready Ingress Controller
+    - name: Check ingress-nginx admission secret existence on rollout failure
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} get secret ingress-nginx-admission -n {{ ingress_namespace }} -o yaml
+      when: ingress_wait.rc is defined and ingress_wait.rc != 0
+      register: ingress_admission_secret
+      ignore_errors: true
+
+    - name: Debug ingress-nginx admission secret (or missing state)
+      debug:
+        var: ingress_admission_secret.stdout_lines
+      when: ingress_wait.rc is defined and ingress_wait.rc != 0
+
+    - name: Describe Ingress Controller deployment on rollout failure
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} describe deployment ingress-nginx-controller -n {{ ingress_namespace }}
+      when: ingress_wait.rc is defined and ingress_wait.rc != 0
+      register: ingress_deploy_describe
+      ignore_errors: true
+
+    - name: Debug Ingress Controller deployment description
+      debug:
+        var: ingress_deploy_describe.stdout_lines
+      when: ingress_wait.rc is defined and ingress_wait.rc != 0
+
+    - name: Get recent events for ingress-nginx namespace on rollout failure
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} get events -n {{ ingress_namespace }} --sort-by=.lastTimestamp | tail -n 25
+      when: ingress_wait.rc is defined and ingress_wait.rc != 0
+      register: ingress_events
+      ignore_errors: true
+
+    - name: Debug recent ingress-nginx events
+      debug:
+        var: ingress_events.stdout_lines
+      when: ingress_wait.rc is defined and ingress_wait.rc != 0
+
     - name: Describe Ingress Controller pods if rollout failed
       shell: kubectl --kubeconfig={{ kubeconfig_path }} describe pods -n {{ ingress_namespace }} -l app.kubernetes.io/component=controller
       when: ingress_wait.rc is defined and ingress_wait.rc != 0
