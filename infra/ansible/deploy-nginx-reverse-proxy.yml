@@ -94,9 +94,9 @@
 
     - name: Wait for backend pods to be ready
       shell: |
-        kubectl --kubeconfig={{ kubeconfig_path }} wait --namespace {{ k8s_namespace }} --for=condition=ready pod -l app=server1 --timeout=10s
-        kubectl --kubeconfig={{ kubeconfig_path }} wait --namespace {{ k8s_namespace }} --for=condition=ready pod -l app=server2 --timeout=10s
-        kubectl --kubeconfig={{ kubeconfig_path }} wait --namespace {{ k8s_namespace }} --for=condition=ready pod -l app=server3 --timeout=10s
+        kubectl --kubeconfig={{ kubeconfig_path }} wait --namespace {{ k8s_namespace }} --for=condition=ready pod -l app=server1 --timeout=120s
+        kubectl --kubeconfig={{ kubeconfig_path }} wait --namespace {{ k8s_namespace }} --for=condition=ready pod -l app=server2 --timeout=120s
+        kubectl --kubeconfig={{ kubeconfig_path }} wait --namespace {{ k8s_namespace }} --for=condition=ready pod -l app=server3 --timeout=120s
       when: backend_mode == 'k8s'
 
     - name: Ensure openssl is installed
