@@ -44,6 +44,26 @@
       shell: kubectl --kubeconfig={{ kubeconfig_path }} delete service -n {{ k8s_namespace }} server1-service server2-service server3-service --ignore-not-found
       when: backend_mode == 'host'
 
+    - name: Copy app-config ConfigMap manifest
+      copy:
+        src: "{{ k8s_manifests_dir }}/configmap-app.yaml"
+        dest: "/tmp/configmap-app.yaml"
+      when: backend_mode == 'k8s'
+
+    - name: Apply app-config ConfigMap
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} apply -f /tmp/configmap-app.yaml
+      when: backend_mode == 'k8s'
+
+    - name: Copy app-secrets Secret manifest
+      copy:
+        src: "{{ k8s_manifests_dir }}/secret-app.yaml"
+        dest: "/tmp/secret-app.yaml"
+      when: backend_mode == 'k8s'
+
+    - name: Apply app-secrets Secret
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} apply -f /tmp/secret-app.yaml
+      when: backend_mode == 'k8s'
+
     - name: Check if backend deployments are present
       shell: kubectl --kubeconfig={{ kubeconfig_path }} get deployment -n {{ k8s_namespace }} server1 server2 server3
       register: backend_deployments_check
