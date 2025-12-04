@@ -13,6 +13,10 @@
     metallb_namespace: "metallb-system"
 
   tasks:
+    - name: Debug MetalLB Variables
+      debug:
+        msg: "Start IP: {{ metallb_ip_pool_start }}, End IP: {{ metallb_ip_pool_end }}"
+
     - name: Check if MetalLB is already installed
       shell: kubectl --kubeconfig={{ kubeconfig_path }} get namespace {{ metallb_namespace }}
       register: metallb_check

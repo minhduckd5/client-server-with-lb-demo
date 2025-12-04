@@ -14,6 +14,8 @@ variables:
   ANSIBLE_INVENTORY: infra/ansible/inventory.ini
   CONTROL_PLANE_IP: "192.168.1.200"
   SSH_USER: "vagrant"
+  METALLB_IP_POOL_START: "192.168.1.240"
+  METALLB_IP_POOL_END: "192.168.1.250"
 # PowerShell Error Handling: Stop pipeline immediately if a command fails
   ErrorActionPreference: "Stop"
   # Prevent git clean from deleting running VM files
