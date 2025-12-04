@@ -117,6 +117,17 @@ configure:
       mkdir -p /root/.ssh
       cp /tmp/ssh_key /root/.ssh/insecure_private_key
       chmod 600 /root/.ssh/insecure_private_key
+      
+      echo "--- DEBUG: SSH Key Fingerprint ---"
+      ssh-keygen -lf /root/.ssh/insecure_private_key
+      
+      echo "--- DEBUG: Ansible Inventory ---"
+      cat inventory.ini
+      
+      echo "--- DEBUG: Testing SSH Connection to Control Plane ---"
+      # We explicitly use the user from env var to catch mismatches
+      ssh -o StrictHostKeyChecking=no -i /root/.ssh/insecure_private_key -vvv $env:SSH_USER@$env:CONTROL_PLANE_IP 'id' || echo "Manual SSH Test Failed"
+      
       eval \$(ssh-agent -s)
       ssh-add /root/.ssh/insecure_private_key
       pip install ansible
