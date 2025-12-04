@@ -80,6 +80,11 @@
       failed_when: false
       when: backend_mode == 'k8s'
 
+    - name: Debug backend services check
+      debug:
+        var: backend_services_check
+      when: backend_mode == 'k8s'
+
     - name: Copy backend service manifests
       copy:
         src: "{{ item }}"
@@ -88,14 +93,24 @@
         - "{{ k8s_manifests_dir }}/service-server1.yaml"
         - "{{ k8s_manifests_dir }}/service-server2.yaml"
         - "{{ k8s_manifests_dir }}/service-server3.yaml"
-      when: backend_mode == 'k8s' and backend_services_check.rc != 0
+      when: backend_mode == 'k8s'
 
-    - name: Deploy backend services if not present
+    - name: Deploy backend services
       shell: |
         kubectl --kubeconfig={{ kubeconfig_path }} apply -f /tmp/service-server1.yaml
         kubectl --kubeconfig={{ kubeconfig_path }} apply -f /tmp/service-server2.yaml
         kubectl --kubeconfig={{ kubeconfig_path }} apply -f /tmp/service-server3.yaml
-      when: backend_mode == 'k8s' and backend_services_check.rc != 0
+      when: backend_mode == 'k8s'
+
+    - name: Debug pod status before wait
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} get pods -n {{ k8s_namespace }} -o wide
+      register: pre_wait_pod_status
+      when: backend_mode == 'k8s'
+
+    - name: Display pod status before wait
+      debug:
+        var: pre_wait_pod_status.stdout_lines
+      when: backend_mode == 'k8s'
 
     - block:
         - name: Wait for backend pods to be ready
