@@ -12,6 +12,27 @@
     ingress_namespace: "ingress-nginx"
 
   tasks:
+    # --- START MODIFICATION ---
+    # Ensure validating webhook TLS secret exists (required by ingress-nginx chart args)
+    - name: Generate self-signed certificate for ingress-nginx admission
+      shell: |
+        openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+          -keyout /tmp/ingress-nginx-admission.key \
+          -out /tmp/ingress-nginx-admission.crt \
+          -subj "/CN=ingress-nginx-admission/O=Ansible-Generated"
+      args:
+        creates: /tmp/ingress-nginx-admission.crt
+
+    - name: Create or update ingress-nginx-admission secret
+      shell: |
+        kubectl --kubeconfig={{ kubeconfig_path }} create secret tls ingress-nginx-admission \
+          --key /tmp/ingress-nginx-admission.key \
+          --cert /tmp/ingress-nginx-admission.crt \
+          -n {{ ingress_namespace }} \
+          --dry-run=client -o yaml | \
+        kubectl --kubeconfig={{ kubeconfig_path }} apply -f -
+    # --- END MODIFICATION ---
+
     - name: Check if Ingress Controller is already installed
       shell: kubectl --kubeconfig={{ kubeconfig_path }} get namespace {{ ingress_namespace }}
       register: ingress_check
