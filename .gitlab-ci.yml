@@ -142,7 +142,6 @@ configure:
       ansible-playbook -i inventory.ini build-images.yml
       ansible-playbook -i inventory.ini deploy-nginx-reverse-proxy.yml
       ansible-playbook -i inventory.ini ingress.yml
-      ansible-playbook -i inventory.ini monitoring.yml
       "@
       Set-Content -Path "run_ansible.sh" -Value $ScriptContent -Encoding ascii
     
