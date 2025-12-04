@@ -82,8 +82,11 @@ configure:
     - Write-Host "Preparing Transient Ansible Environment..."
         
     # 1. Stage the SSH Key for Docker mounting
-    # We copy the GitLab File Variable to a local file so Docker can mount it
-    - Get-Content $env:SSH_PRIVATE_KEY | Set-Content -Encoding ascii -Path "id_rsa_temp"
+    # Use the local Vagrant Insecure Key because we just provisioned these VMs locally.
+    # The CI Variable SSH_PRIVATE_KEY is ignored in favor of the actual key used by Vagrant.
+    - $VagrantKey = "$env:USERPROFILE\.vagrant.d\insecure_private_key"
+    - if (-not (Test-Path $VagrantKey)) { Write-Error "Vagrant private key not found at $VagrantKey"; exit 1 }
+    - Copy-Item $VagrantKey -Destination "id_rsa_temp"
 
     # 2. Execute Ansible inside a Linux Container
     # We mount the current directory (${PWD}) to /work inside the container
