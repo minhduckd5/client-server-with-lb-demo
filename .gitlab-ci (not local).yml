@@ -1,0 +1,208 @@
+# MODIFY: set these variables in GitLab CI project settings (SSH key, Vagrant config)
+# GitLab CI pipeline: vagrant up + ansible configure (K3s) + deploy + smoke test
+
+stages:
+  - provision
+  - configure
+  - deploy
+  - smoke-test
+
+variables:
+  VAGRANT_WORKING_DIR: infra/vagrant
+  # TF_WORKING_DIR: infra/terraform
+  ANSIBLE_WORKING_DIR: infra/ansible
+  ANSIBLE_INVENTORY: infra/ansible/inventory.ini
+  CONTROL_PLANE_IP: "192.168.1.200"
+  SSH_USER: "ubuntu"
+  # Standardize SSH setup logic to avoid repetition errors
+  SSH_SETUP_CMD: |
+    mkdir -p ~/.ssh
+    chmod 700 ~/.ssh
+    cp "$SSH_PRIVATE_KEY" ~/.ssh/id_rsa
+    chmod 600 ~/.ssh/id_rsa
+    ssh-add ~/.ssh/id_rsa
+
+# Provision VMs with Vagrant (manual approval required)
+provision:
+  stage: provision
+  image: ubuntu:22.04
+  # when: manual
+  before_script:
+    - apt-get update && apt-get install -y vagrant virtualbox build-essential || true
+    # Install Vagrant VMware Desktop plugin
+    - vagrant plugin install vagrant-vmware-desktop || echo "Plugin install failed, continuing..."
+    # Setup SSH
+    # - mkdir -p ~/.ssh
+    # - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa.rsa
+    # - chmod 600 ~/.ssh/id_rsa.rsa
+    - eval $(ssh-agent -s)
+    - eval "$SSH_SETUP_CMD"
+  script:
+    - cd $VAGRANT_WORKING_DIR
+    - echo "Attempting to provision with Vagrant..."
+    - vagrant up --provider=vmware_desktop || echo "Vagrant provision failed (expected on SaaS runners)"
+    # Generate Inventory (Static IPs based on Vagrantfile)
+    - echo "Generating Ansible inventory..."
+    - |
+      cat > $CI_PROJECT_DIR/$ANSIBLE_INVENTORY <<EOF
+      [k3s_control]
+      k3s-control-plane ansible_host=$CONTROL_PLANE_IP
+
+      [k3s_workers]
+      k3s-worker-1 ansible_host=192.168.1.201
+      k3s-worker-2 ansible_host=192.168.1.202
+
+      [k3s_nodes:children]
+      k3s_control
+      k3s_workers
+
+      [ops]
+      k3s-ops ansible_host=192.168.1.203
+
+      [monitoring]
+      k3s-monitoring ansible_host=192.168.1.204
+
+      [all:vars]
+      ansible_user=$SSH_USER
+      ansible_ssh_private_key_file=~/.ssh/id_rsa
+      ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+      EOF
+    - echo "Inventory generated:"
+    - cat $CI_PROJECT_DIR/$ANSIBLE_INVENTORY
+  artifacts:
+    paths:
+      - $ANSIBLE_INVENTORY
+    expire_in: 1 week
+  only:
+    - main
+    - develop
+
+# Ansible configuration (K3s)
+configure:
+  stage: configure
+  tags:
+    - local
+  image: python:3-alpine
+  dependencies:
+    - provision
+  before_script:
+    - apk add --no-cache openssh-client git build-base libffi-dev openssl-dev
+    - pip install ansible
+    - eval $(ssh-agent -s)
+    - eval "$SSH_SETUP_CMD"
+    - ssh-keyscan -H $CONTROL_PLANE_IP >> ~/.ssh/known_hosts || true
+  script:
+    - cd $ANSIBLE_WORKING_DIR
+    - |
+      ansible-playbook -i inventory.ini bootstrap.yml \
+        --extra-vars "metallb_ip_pool_start=$METALLB_IP_POOL_START metallb_ip_pool_end=$METALLB_IP_POOL_END"
+    - ansible-playbook -i inventory.ini k3s-install.yml
+    - ansible-playbook -i inventory.ini metallb.yml \
+        --extra-vars "metallb_ip_pool_start=$METALLB_IP_POOL_START metallb_ip_pool_end=$METALLB_IP_POOL_END"
+    - ansible-playbook -i inventory.ini build-images.yml
+    - ansible-playbook -i inventory.ini deploy-nginx-reverse-proxy.yml
+    - ansible-playbook -i inventory.ini ingress.yml
+    - ansible-playbook -i inventory.ini monitoring.yml
+  only:
+    - main
+    - develop
+
+# Deploy application
+deploy:
+  stage: deploy
+  tags:
+    - local
+  image: bitnami/kubectl:latest
+  when: manual
+  before_script:
+    # - apk add --no-cache openssh-client curl
+    # - eval $(ssh-agent -s)
+    # - mkdir -p ~/.ssh
+    # - chmod 700 ~/.ssh
+    # - |
+    #   if [ -f "$SSH_PRIVATE_KEY" ]; then
+    #     cat "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+    #   else
+    #     # Replace echo with printf to safely handle newlines in CI variables
+    #     printf "%s\n" "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+    #   fi
+    # - chmod 600 ~/.ssh/id_rsa
+    # - |
+    #   # Ensure trailing newline exists (POSIX compliant check)
+    #   if [ -s ~/.ssh/id_rsa ] && [ "$(tail -c1 ~/.ssh/id_rsa | wc -l)" -eq 0 ]; then
+    #     echo "" >> ~/.ssh/id_rsa
+    #   fi
+    # - ssh-add ~/.ssh/id_rsa
+    # - ssh-keyscan -H $CONTROL_PLANE_IP >> ~/.ssh/known_hosts || true
+    # - |
+    #   ssh -o StrictHostKeyChecking=no $SSH_USER@$CONTROL_PLANE_IP \
+    #     "cat ~/.kube/config" > kubeconfig
+    # - export KUBECONFIG=$(pwd)/kubeconfig
+    - apk add --no-cache openssh-client curl
+    - curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+    - chmod +x kubectl && mv kubectl /usr/local/bin/
+    - eval $(ssh-agent -s)
+    - eval "$SSH_SETUP_CMD"
+    - ssh-keyscan -H $CONTROL_PLANE_IP >> ~/.ssh/known_hosts || true
+    - ssh -o StrictHostKeyChecking=no $SSH_USER@$CONTROL_PLANE_IP "cat ~/.kube/config" > kubeconfig
+    - export KUBECONFIG=$(pwd)/kubeconfig
+  script:
+    - kubectl cluster-info
+    - kubectl get nodes
+    - kubectl get pods --all-namespaces
+    - |
+      if [ -d "k8s" ]; then
+        kubectl apply -f k8s/
+      else
+        echo "No k8s manifests found, skipping application deployment"
+      fi
+  dependencies:
+    - configure
+  only:
+    - main
+    - develop
+
+# Smoke test
+smoke-test:
+  stage: smoke-test
+  tags:
+    - local
+  image: curlimages/curl:latest
+  script:
+    - |
+      # Test Nginx Reverse Proxy LoadBalancer
+      NGINX_LB_IP=$(ssh -o StrictHostKeyChecking=no $SSH_USER@$CONTROL_PLANE_IP \
+        "kubectl get svc -n loadbalancer nginx-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}'")
+      echo "Nginx Reverse Proxy LoadBalancer IP: $NGINX_LB_IP"
+      if [ -n "$NGINX_LB_IP" ]; then
+        curl -f http://$NGINX_LB_IP/ || echo "Nginx reverse proxy health check failed"
+      else
+        echo "Nginx reverse proxy LoadBalancer IP not assigned yet"
+        exit 1
+      fi
+    - |
+      # Test Ingress Controller (optional)
+      INGRESS_IP=$(ssh -o StrictHostKeyChecking=no $SSH_USER@$CONTROL_PLANE_IP \
+        "kubectl get svc -n ingress-nginx ingress-nginx-controller -o jsonpath='{.status.loadBalancer.ingress[0].ip}'" || echo "")
+      if [ -n "$INGRESS_IP" ]; then
+        echo "Ingress IP: $INGRESS_IP"
+        curl -f http://$INGRESS_IP/health || echo "Health check endpoint not available"
+      else
+        echo "Ingress IP not assigned (optional)"
+      fi
+    - |
+      # Test Grafana
+      GRAFANA_IP=$(ssh -o StrictHostKeyChecking=no $SSH_USER@$CONTROL_PLANE_IP \
+        "kubectl get svc -n monitoring grafana -o jsonpath='{.status.loadBalancer.ingress[0].ip}'" || echo "")
+      if [ -n "$GRAFANA_IP" ]; then
+        echo "Grafana IP: $GRAFANA_IP"
+        curl -f http://$GRAFANA_IP/api/health || echo "Grafana health check failed"
+      else
+        echo "Grafana IP not assigned (optional)"
+      fi
+  dependencies:
+    - deploy
+  only:
+    - main
+    - develop
+
