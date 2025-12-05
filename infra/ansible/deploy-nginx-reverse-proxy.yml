@@ -217,12 +217,11 @@
 
     - name: Wait for nginx reverse proxy pods to be ready
       shell: |
-        for i in {1..12}; do
-          kubectl --kubeconfig={{ kubeconfig_path }} get pods -n {{ k8s_namespace }} -l app=nginx-reverse-proxy
+        for i in {1..24}; do
           if kubectl --kubeconfig={{ kubeconfig_path }} wait --namespace {{ k8s_namespace }} --for=condition=ready pod -l app=nginx-reverse-proxy --timeout=5s; then
             exit 0
           fi
-          echo "Waiting for nginx reverse proxy... ($i/12)"
+          echo "Waiting for nginx reverse proxy... ($i/24)"
           sleep 5
         done
         exit 1
