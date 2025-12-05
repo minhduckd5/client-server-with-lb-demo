@@ -233,6 +233,10 @@ deploy:
         bitnami/kubectl:latest `
         apply -k k8s/ --force
     - 'Get-ChildItem "kube_id_rsa*" | ForEach-Object { icacls $_.FullName /grant "$($env:USERNAME):(F)" | Out-Null; Remove-Item $_.FullName -Force }'
+  artifacts:
+    paths:
+      - kubeconfig_final
+    expire_in: 1 hour
   dependencies:
     - configure
   only:
@@ -256,6 +260,7 @@ smoke-test:
     - |
       docker run --rm `
         --network host `
+        -v "${PWD}:/work" `
         -v "${PWD}\kubeconfig_final:/tmp/kubeconfig" `
         -e KUBECONFIG=/tmp/kubeconfig `
         bitnami/kubectl:latest `
