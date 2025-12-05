@@ -253,14 +253,13 @@ smoke-test:
     # Simple HTTP Check
     # Assuming your LoadBalancer exposes a service on a known IP or you query it via kubectl first
     # For this example, we'll check the Nginx endpoint if you know the IP, or just verify the cluster nodes
-    - docker run --rm -v "${PWD}\kubeconfig_final:/root/.kube/config" bitnami/kubectl:latest get nodes    
-    # - |
-    #   docker run --rm `
-    #     --network host `
-    #     -v "${PWD}\kubeconfig_final:/tmp/kubeconfig" `
-    #     -e KUBECONFIG=/tmp/kubeconfig `
-    #     bitnami/kubectl:latest `
-    #     get nodes
+    - |
+      docker run --rm `
+        --network host `
+        -v "${PWD}\kubeconfig_final:/tmp/kubeconfig" `
+        -e KUBECONFIG=/tmp/kubeconfig `
+        bitnami/kubectl:latest `
+        get nodes
     
     - Write-Host "Smoke Test Complete."
   dependencies:
