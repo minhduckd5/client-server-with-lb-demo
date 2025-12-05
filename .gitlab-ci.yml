@@ -204,6 +204,9 @@ deploy:
   script:
     - Write-Host "Retrieving Kubeconfig from Control Plane..."
 
+    # Pre-cleanup: Ensure no stale key with bad permissions exists from previous runs
+    - 'Get-ChildItem "kube_id_rsa*" | ForEach-Object { Write-Host "Removing stale key $($_.Name)..."; icacls $_.FullName /grant "$($env:USERNAME):(F)" | Out-Null; Remove-Item $_.FullName -Force }'
+
     # 0. Prepare SSH key with proper Windows ACLs (reuse Vagrant key logic)
     - $MachineKey = "$env:VAGRANT_WORKING_DIR\.vagrant\machines\k3s-control-plane\vmware_desktop\private_key"
     - $InsecureKey = "$env:USERPROFILE\.vagrant.d\insecure_private_key"
@@ -227,7 +230,7 @@ deploy:
         -w /work `
         bitnami/kubectl:latest `
         apply -f k8s/
-    - Remove-Item "kube_id_rsa" -ErrorAction SilentlyContinue
+    - 'Get-ChildItem "kube_id_rsa*" | ForEach-Object { icacls $_.FullName /grant "$($env:USERNAME):(F)" | Out-Null; Remove-Item $_.FullName -Force }'
   dependencies:
     - configure
   only:
