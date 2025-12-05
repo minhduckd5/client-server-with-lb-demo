@@ -227,8 +227,8 @@ deploy:
       docker run --rm `
         --network host `
         -v "${PWD}:/work" `
-        -v "${PWD}\kubeconfig_final:/root/.kube/config" `
-        -e KUBECONFIG=/root/.kube/config `
+        -v "${PWD}\kubeconfig_final:/tmp/kubeconfig" `
+        -e KUBECONFIG=/tmp/kubeconfig `
         -w /work `
         bitnami/kubectl:latest `
         apply -k k8s/
