@@ -228,6 +228,7 @@ deploy:
         --network host `
         -v "${PWD}:/work" `
         -v "${PWD}\kubeconfig_final:/root/.kube/config" `
+        -e KUBECONFIG=/root/.kube/config `
         -w /work `
         bitnami/kubectl:latest `
         apply -f k8s/
