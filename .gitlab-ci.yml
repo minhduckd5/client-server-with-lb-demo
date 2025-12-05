@@ -231,7 +231,7 @@ deploy:
         -e KUBECONFIG=/root/.kube/config `
         -w /work `
         bitnami/kubectl:latest `
-        apply -f k8s/
+        apply -k k8s/
     - 'Get-ChildItem "kube_id_rsa*" | ForEach-Object { icacls $_.FullName /grant "$($env:USERNAME):(F)" | Out-Null; Remove-Item $_.FullName -Force }'
   dependencies:
     - configure
