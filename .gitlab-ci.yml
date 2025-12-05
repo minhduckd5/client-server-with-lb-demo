@@ -19,7 +19,7 @@ variables:
 # PowerShell Error Handling: Stop pipeline immediately if a command fails
   ErrorActionPreference: "Stop"
   # Prevent git clean from deleting running VM files
-  GIT_CLEAN_FLAGS: -ffdx -e infra/vagrant/.vagrant/
+  GIT_CLEAN_FLAGS: -ffdx -e infra/vagrant/.vagrant/ -e kube_id_rsa*
 
 # ---------------------------------------------------------------------------
 # STAGE 1: PROVISION (Native Windows Execution)
@@ -225,6 +225,7 @@ deploy:
     # 3. Apply Manifests via Dockerized Kubectl
     - |
       docker run --rm `
+        --network host `
         -v "${PWD}:/work" `
         -v "${PWD}\kubeconfig_final:/root/.kube/config" `
         -w /work `
