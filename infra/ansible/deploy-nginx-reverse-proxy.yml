@@ -83,9 +83,9 @@
 
     - name: Deploy backend deployments
       shell: |
-        kubectl --kubeconfig={{ kubeconfig_path }} apply -f /tmp/deployment-server1.yaml
-        kubectl --kubeconfig={{ kubeconfig_path }} apply -f /tmp/deployment-server2.yaml
-        kubectl --kubeconfig={{ kubeconfig_path }} apply -f /tmp/deployment-server3.yaml
+        kubectl --kubeconfig={{ kubeconfig_path }} apply -f /tmp/deployment-server1.yaml --force
+        kubectl --kubeconfig={{ kubeconfig_path }} apply -f /tmp/deployment-server2.yaml --force
+        kubectl --kubeconfig={{ kubeconfig_path }} apply -f /tmp/deployment-server3.yaml --force
       when: backend_mode == 'k8s'
 
     - name: Restart backend deployments to pick up new images
@@ -212,7 +212,7 @@
         dest: "/tmp/deployment-nginx.yaml"
 
     - name: Deploy nginx reverse proxy
-      shell: kubectl --kubeconfig={{ kubeconfig_path }} apply -f /tmp/deployment-nginx.yaml
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} apply -f /tmp/deployment-nginx.yaml --force
       register: nginx_deploy
 
     - name: Wait for nginx reverse proxy pods to be ready
