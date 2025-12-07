@@ -31,3 +31,4 @@ docker-compose.override.yml
 .cursor/
 server-image.tar
 .vagrant/
+infra/vagrant/server/

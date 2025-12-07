@@ -2,6 +2,29 @@
 # Build and Distribute Docker Images for K3s Cluster
 # This playbook automates the build-export-import cycle for local development
 
+# 1. STAGE: Copy source code to shared folder (Localhost)
+- name: Stage Server Source Code
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Sync server directory
+      shell: |
+        mkdir -p "{{ playbook_dir }}/../vagrant/server"
+        if command -v rsync >/dev/null 2>&1; then
+          # Use rsync for efficiency if available
+          rsync -av --delete --exclude='node_modules' --exclude='.git' "{{ playbook_dir }}/../../server/" "{{ playbook_dir }}/../vagrant/server/"
+        else
+          # Fallback for environments without rsync (e.g. Alpine default)
+          cp -R "{{ playbook_dir }}/../../server/." "{{ playbook_dir }}/../vagrant/server/"
+          # Manual cleanup of excluded items
+          rm -rf "{{ playbook_dir }}/../vagrant/server/node_modules"
+          rm -rf "{{ playbook_dir }}/../vagrant/server/.git"
+        fi
+      args:
+        executable: /bin/sh
+
+# 2. BUILD: Build Server Image on Control Plane
 - name: Build Server Image on Control Plane
   hosts: k3s_control
   become: true
@@ -15,16 +38,11 @@
       command: docker build -t server:latest /vagrant/server
       args:
         chdir: /vagrant/server
-      # Force rebuild to pick up changes
-      # changed_when: true 
 
     - name: Save Docker image to tarball
       command: docker save server:latest -o /vagrant/server-image.tar
-      # args:
-      #   creates: /vagrant/server-image.tar
-      # Removed 'creates' to force image update on every run
 
-
+# 3. DISTRIBUTE: Import Image on All Nodes
 - name: Import Image on All Nodes
   hosts: k3s_nodes
   become: true
@@ -35,8 +53,13 @@
       register: import_result
       changed_when: "'unpacking' in import_result.stdout"
 
-
-
-
-
-
+# 4. CLEANUP: Remove staged code (Localhost)
+- name: Cleanup Staged Code
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Remove staged server directory
+      file:
+        path: "{{ playbook_dir }}/../vagrant/server"
+        state: absent
