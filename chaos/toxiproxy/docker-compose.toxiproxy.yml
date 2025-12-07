@@ -1,0 +1,30 @@
+version: "3.8"
+
+services:
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.5.0
+    container_name: toxiproxy
+    ports:
+      - "8474:8474" # API port
+      - "6379"      # Proxy port for Redis (internal mostly, but exposed for debugging)
+    depends_on:
+      - redis
+
+  # Override tcp-auth-server to point to toxiproxy instead of redis directly
+  tcp-auth-server:
+    environment:
+      REDIS_HOST: toxiproxy
+      REDIS_PORT: 6379
+    depends_on:
+      - toxiproxy
+
+  # Optional: A CLI container to configure toxiproxy easily
+  toxiproxy-cli:
+    image: ghcr.io/shopify/toxiproxy:2.5.0
+    entrypoint: /bin/sh
+    command: -c "sleep infinity"
+    depends_on:
+      - toxiproxy
+
+
+

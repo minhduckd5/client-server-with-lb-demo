@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kube-monkey
+  namespace: kube-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kube-monkey
+  template:
+    metadata:
+      labels:
+        app: kube-monkey
+    spec:
+      containers:
+        - name: kube-monkey
+          image: ayushsobti/kube-monkey:v0.4.0
+          command: ["/kube-monkey"]
+          args: ["-v=5", "-log_dir=/var/log/kube-monkey"]
+          volumeMounts:
+            - name: config-volume
+              mountPath: /etc/kube-monkey
+      volumes:
+        - name: config-volume
+          configMap:
+            name: kube-monkey-config-map
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kube-monkey-config-map
+  namespace: kube-system
+data:
+  config.toml: |
+    [kubemonkey]
+    dry_run = false                           # Set to true to see what would happen without killing
+    run_hour = 10                             # Run chaos from 10 AM
+    start_hour = 10
+    end_hour = 16                             # ... until 4 PM
+    blacklisted_namespaces = ["kube-system"]  # Don't kill system pods
+    time_zone = "UTC"
+
+
+
+

@@ -12,7 +12,6 @@
     ingress_namespace: "ingress-nginx"
 
   tasks:
-    # --- START MODIFICATION ---
     # Ensure validating webhook TLS secret exists (required by ingress-nginx chart args)
     - name: Generate self-signed certificate for ingress-nginx admission
       shell: |
@@ -31,7 +30,6 @@
           -n {{ ingress_namespace }} \
           --dry-run=client -o yaml | \
         kubectl --kubeconfig={{ kubeconfig_path }} apply -f -
-    # --- END MODIFICATION ---
 
     - name: Create Ingress Controller manifest with MetalLB
       template:

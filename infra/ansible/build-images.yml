@@ -20,6 +20,8 @@
 
     - name: Save Docker image to tarball
       command: docker save server:latest -o /vagrant/server-image.tar
+      # args:
+      #   creates: /vagrant/server-image.tar
       # Removed 'creates' to force image update on every run
 
 

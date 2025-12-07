@@ -1,0 +1,19 @@
+version: "3.8"
+
+services:
+  pumba:
+    image: gaiaadm/pumba:latest
+    container_name: pumba
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: 
+      # Kill one container named 'server*' every 1 minute
+      - "--interval=1m"
+      - "--random"
+      - "--log-level=info"
+      - "kill"
+      - "--signal=SIGKILL"
+      - "re2:^client-server-with-lb-demo-server[0-9]+" # Adjust regex to match your container names
+
+
+
