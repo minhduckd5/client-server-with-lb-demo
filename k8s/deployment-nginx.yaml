@@ -16,6 +16,18 @@ spec:
       labels:
         app: nginx-reverse-proxy
     spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - nginx-reverse-proxy
+              topologyKey: kubernetes.io/hostname
       containers:
       - name: nginx
         image: nginx:1.18.0-alpine

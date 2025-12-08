@@ -313,7 +313,27 @@ sudo k3s kubectl get svc -n loadbalancer nginx-service
 
 ---
 
-### Stage 8: Application Deployment
+### Stage 8: Autoscaling & Resilience
+#### 8.1 Deploy Autoscalers
+```bash
+ansible-playbook -i inventory.ini autoscale.yml
+```
+
+**What happens:**
+1. **Horizontal Pod Autoscaler (HPA):**
+   - Applies HPA policies for `nginx-reverse-proxy` and backend servers.
+   - Scales pods based on CPU/Memory usage (e.g., target 60% CPU).
+
+2. **Vertical Pod Autoscaler (VPA):**
+   - Applies VPA policies (requires VPA CRDs).
+   - Currently set to "Off" mode (recommendation only) to avoid conflicts.
+
+3. **ReplicaSet Demo:**
+   - Deploys a standalone ReplicaSet `manual-replicaset-demo` for testing manual scaling.
+
+---
+
+### Stage 9: Application Deployment
 
 #### 8.1 Deploy Application Manifests
 ```bash
@@ -343,9 +363,9 @@ kubectl apply -f k8s/
 
 ---
 
-### Stage 9: Traffic Flow
+### Stage 10: Traffic Flow
 
-#### 9.1 Complete Request Flow
+#### 10.1 Complete Request Flow
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -422,9 +442,9 @@ kubectl apply -f k8s/
 
 ---
 
-### Stage 10: Monitoring and Observability
+### Stage 11: Monitoring and Observability
 
-#### 10.1 Monitoring Stack Deployment
+#### 11.1 Monitoring Stack Deployment
 ```bash
 ansible-playbook -i inventory.ini monitoring.yml
 ```
@@ -460,9 +480,9 @@ ansible-playbook -i inventory.ini monitoring.yml
 
 ---
 
-### Stage 11: GitLab CI/CD Pipeline
+### Stage 12: GitLab CI/CD Pipeline
 
-#### 11.1 Automated Workflow
+#### 12.1 Automated Workflow
 
 **Pipeline Stages:**
 
@@ -478,6 +498,7 @@ ansible-playbook -i inventory.ini monitoring.yml
    - Installs K3s (k3s-install.yml)
    - Deploys MetalLB (metallb.yml)
    - Deploys Nginx Reverse Proxy (deploy-nginx-reverse-proxy.yml)
+   - Deploys Autoscalers (autoscale.yml)
    - Deploys Ingress Controller (ingress.yml)
    - Deploys Monitoring (monitoring.yml)
    ```
@@ -571,6 +592,7 @@ ansible-playbook -i inventory.ini monitoring.yml
 | **Service Discovery**   | Internal routing           | Kubernetes Services          |
 | **Monitoring**          | Metrics & dashboards       | Prometheus + Grafana         |
 | **Configuration**       | Infrastructure as Code     | Ansible                      |
+| **Autoscaling**         | HPA & VPA                  | Kubernetes Autoscaling       |
 | **CI/CD**               | Automation                 | GitLab CI                    |
 
 ---
@@ -582,10 +604,11 @@ ansible-playbook -i inventory.ini monitoring.yml
 3. **K3s Installation:** ~3-5 minutes (cluster setup)
 4. **MetalLB Deployment:** ~1-2 minutes
 5. **Nginx Reverse Proxy:** ~1-2 minutes
-6. **Application Deployment:** ~2-3 minutes
-7. **Monitoring Stack:** ~2-3 minutes
+6. **Autoscale & ReplicaSet:** ~1 minute
+7. **Application Deployment:** ~2-3 minutes
+8. **Monitoring Stack:** ~2-3 minutes
 
-**Total:** ~20-30 minutes for complete infrastructure setup
+**Total:** ~25-35 minutes for complete infrastructure setup
 
 ---
 

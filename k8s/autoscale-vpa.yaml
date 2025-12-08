@@ -1,0 +1,65 @@
+# Note: Vertical Pod Autoscaler requires the VPA Admission Controller to be installed in the cluster.
+# See: https://github.com/kubernetes/autoscaler/tree/master/vertical-pod-autoscaler
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: nginx-reverse-proxy-vpa
+  namespace: loadbalancer
+spec:
+  targetRef:
+    apiVersion: "apps/v1"
+    kind: Deployment
+    name: nginx-reverse-proxy
+  updatePolicy:
+    updateMode: "Off" # "Off" allows VPA to suggest changes without restarting pods automatically. Use "Auto" for automatic updates.
+  resourcePolicy:
+    containerPolicies:
+      - containerName: '*'
+        minAllowed:
+          cpu: 25m
+          memory: 32Mi
+        maxAllowed:
+          cpu: 500m
+          memory: 512Mi
+---
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: server1-vpa
+  namespace: loadbalancer
+spec:
+  targetRef:
+    apiVersion: "apps/v1"
+    kind: Deployment
+    name: server1
+  updatePolicy:
+    updateMode: "Off"
+---
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: server2-vpa
+  namespace: loadbalancer
+spec:
+  targetRef:
+    apiVersion: "apps/v1"
+    kind: Deployment
+    name: server2
+  updatePolicy:
+    updateMode: "Off"
+---
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: server3-vpa
+  namespace: loadbalancer
+spec:
+  targetRef:
+    apiVersion: "apps/v1"
+    kind: Deployment
+    name: server3
+  updatePolicy:
+    updateMode: "Off"
+
+
+

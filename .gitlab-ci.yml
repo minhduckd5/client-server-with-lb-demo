@@ -168,6 +168,7 @@ configure:
       run_play "metallb" -i /work/infra/ansible/inventory.ini /work/infra/ansible/metallb.yml --extra-vars "metallb_ip_pool_start=$env:METALLB_IP_POOL_START metallb_ip_pool_end=$env:METALLB_IP_POOL_END"
       run_play "build-images" -i /work/infra/ansible/inventory.ini /work/infra/ansible/build-images.yml
       run_play "deploy-nginx-reverse-proxy" -i /work/infra/ansible/inventory.ini /work/infra/ansible/deploy-nginx-reverse-proxy.yml
+      run_play "autoscale" -i /work/infra/ansible/inventory.ini /work/infra/ansible/autoscale.yml
       run_play "ingress" -i /work/infra/ansible/inventory.ini /work/infra/ansible/ingress.yml
       echo "=== DEBUG: ALL PLAYBOOKS COMPLETED SUCCESSFULLY ==="
       # --- END MODIFICATION ---

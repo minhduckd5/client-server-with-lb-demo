@@ -15,6 +15,18 @@ spec:
       labels:
         app: server2
     spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - server2
+              topologyKey: kubernetes.io/hostname
       containers:
       - name: server2
         # MODIFIED: Use local image 'server:latest' (built on CP) and prevent pulling from Docker Hub (imagePullPolicy: Never)

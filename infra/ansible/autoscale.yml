@@ -1,0 +1,69 @@
+---
+# Deploy Autoscale Configuration (HPA & VPA)
+# This playbook deploys the Horizontal and Vertical Pod Autoscalers
+
+- name: Deploy Autoscale Configuration
+  hosts: k3s_control
+  become: true
+  gather_facts: true
+
+  vars:
+    kubeconfig_path: "/home/{{ ansible_user }}/.kube/config"
+    k8s_manifests_dir: "{{ inventory_dir }}/../../k8s"
+    k8s_namespace: "loadbalancer"
+
+  tasks:
+    - name: Copy HPA manifest
+      copy:
+        src: "{{ k8s_manifests_dir }}/autoscale-hpa.yaml"
+        dest: "/tmp/autoscale-hpa.yaml"
+
+    - name: Apply Horizontal Pod Autoscalers (HPA)
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} apply -f /tmp/autoscale-hpa.yaml
+      register: hpa_apply
+
+    - name: Display HPA apply result
+      debug:
+        var: hpa_apply.stdout_lines
+
+    - name: Copy VPA manifest
+      copy:
+        src: "{{ k8s_manifests_dir }}/autoscale-vpa.yaml"
+        dest: "/tmp/autoscale-vpa.yaml"
+
+    - name: Check for VPA CRDs
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} get crd verticalpodautoscalers.autoscaling.k8s.io
+      register: vpa_crd_check
+      failed_when: false
+      changed_when: false
+
+    - name: Apply Vertical Pod Autoscalers (VPA)
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} apply -f /tmp/autoscale-vpa.yaml
+      when: vpa_crd_check.rc == 0
+      register: vpa_apply
+
+    - name: Warn if VPA CRDs missing
+      debug:
+        msg: "Vertical Pod Autoscaler CRDs are not installed. Skipping VPA deployment. Please install VPA first."
+      when: vpa_crd_check.rc != 0
+
+    - name: Display VPA apply result
+      debug:
+        var: vpa_apply.stdout_lines
+      when: vpa_crd_check.rc == 0
+
+    - name: Copy ReplicaSet demo manifest
+      copy:
+        src: "{{ k8s_manifests_dir }}/replicaset-demo.yaml"
+        dest: "/tmp/replicaset-demo.yaml"
+
+    - name: Apply ReplicaSet demo
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} apply -f /tmp/replicaset-demo.yaml
+      register: replicaset_apply
+
+    - name: Display ReplicaSet apply result
+      debug:
+        var: replicaset_apply.stdout_lines
+
+
+

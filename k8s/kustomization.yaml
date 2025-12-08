@@ -16,6 +16,9 @@ resources:
   - service-server3.yaml
   - deployment-nginx.yaml
   - service-nginx.yaml
+  - autoscale-hpa.yaml
+  - autoscale-vpa.yaml
+  - replicaset-demo.yaml
   # Full stack components (uncomment to include):
   # - redis-deployment.yaml
   # - tcp-auth-server-deployment.yaml
