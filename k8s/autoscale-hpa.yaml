@@ -8,7 +8,7 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: nginx-reverse-proxy
-  minReplicas: 2
+  minReplicas: 3
   maxReplicas: 10
   metrics:
   - type: Resource
@@ -34,7 +34,7 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: server1
-  minReplicas: 2
+  minReplicas: 3
   maxReplicas: 8
   metrics:
   - type: Resource
@@ -54,7 +54,7 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: server2
-  minReplicas: 2
+  minReplicas: 3
   maxReplicas: 8
   metrics:
   - type: Resource
@@ -74,7 +74,7 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: server3
-  minReplicas: 2
+  minReplicas: 3
   maxReplicas: 8
   metrics:
   - type: Resource
