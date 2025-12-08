@@ -77,7 +77,7 @@
         dest: "/tmp/replicaset-demo.yaml"
 
     - name: Apply ReplicaSet demo
-      shell: kubectl --kubeconfig={{ kubeconfig_path }} apply -f /tmp/replicaset-demo.yaml
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} apply -f /tmp/replicaset-demo.yaml --force
       register: replicaset_apply
 
     - name: Display ReplicaSet apply result
