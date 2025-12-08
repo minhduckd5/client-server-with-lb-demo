@@ -13,6 +13,9 @@
 
   tasks:
     # Ensure validating webhook TLS secret exists (required by ingress-nginx chart args)
+    - name: Create ingress namespace if not exists
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} create namespace {{ ingress_namespace }} --dry-run=client -o yaml | kubectl --kubeconfig={{ kubeconfig_path }} apply -f -
+
     - name: Generate self-signed certificate for ingress-nginx admission
       shell: |
         openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
