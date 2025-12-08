@@ -26,31 +26,50 @@
       debug:
         var: hpa_apply.stdout_lines
 
-    - name: Copy VPA manifest
-      copy:
-        src: "{{ k8s_manifests_dir }}/autoscale-vpa.yaml"
-        dest: "/tmp/autoscale-vpa.yaml"
+    # - name: Copy VPA manifest
+    #   copy:
+    #     src: "{{ k8s_manifests_dir }}/autoscale-vpa.yaml"
+    #     dest: "/tmp/autoscale-vpa.yaml"
 
-    - name: Check for VPA CRDs
-      shell: kubectl --kubeconfig={{ kubeconfig_path }} get crd verticalpodautoscalers.autoscaling.k8s.io
-      register: vpa_crd_check
-      failed_when: false
-      changed_when: false
+    # - name: Check for VPA CRDs
+    #   shell: kubectl --kubeconfig={{ kubeconfig_path }} get crd verticalpodautoscalers.autoscaling.k8s.io
+    #   register: vpa_crd_check
+    #   failed_when: false
+    #   changed_when: false
 
-    - name: Apply Vertical Pod Autoscalers (VPA)
-      shell: kubectl --kubeconfig={{ kubeconfig_path }} apply -f /tmp/autoscale-vpa.yaml
-      when: vpa_crd_check.rc == 0
-      register: vpa_apply
+    # - name: Install VPA prerequisites
+    #   apt:
+    #     name:
+    #       - git
+    #       - openssl
+    #     state: present
+    #     update_cache: yes
+    #   when: vpa_crd_check.rc != 0
 
-    - name: Warn if VPA CRDs missing
-      debug:
-        msg: "Vertical Pod Autoscaler CRDs are not installed. Skipping VPA deployment. Please install VPA first."
-      when: vpa_crd_check.rc != 0
+    # - name: Clone Kubernetes Autoscaler repository
+    #   git:
+    #     repo: https://github.com/kubernetes/autoscaler.git
+    #     dest: /tmp/autoscaler
+    #     version: master
+    #     force: yes
+    #   when: vpa_crd_check.rc != 0
 
-    - name: Display VPA apply result
-      debug:
-        var: vpa_apply.stdout_lines
-      when: vpa_crd_check.rc == 0
+    # - name: Install Vertical Pod Autoscaler
+    #   shell: |
+    #     ./hack/vpa-up.sh
+    #   args:
+    #     chdir: /tmp/autoscaler/vertical-pod-autoscaler
+    #   environment:
+    #     KUBECONFIG: "{{ kubeconfig_path }}"
+    #   when: vpa_crd_check.rc != 0
+
+    # - name: Apply Vertical Pod Autoscalers (VPA)
+    #   shell: kubectl --kubeconfig={{ kubeconfig_path }} apply -f /tmp/autoscale-vpa.yaml
+    #   register: vpa_apply
+
+    # - name: Display VPA apply result
+    #   debug:
+    #     var: vpa_apply.stdout_lines
 
     - name: Copy ReplicaSet demo manifest
       copy:

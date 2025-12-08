@@ -17,15 +17,16 @@ resources:
   - deployment-nginx.yaml
   - service-nginx.yaml
   - autoscale-hpa.yaml
-  - autoscale-vpa.yaml
+  # - autoscale-vpa.yaml
   - replicaset-demo.yaml
   # Full stack components (uncomment to include):
   # - redis-deployment.yaml
   # - tcp-auth-server-deployment.yaml
 
-# Common labels
-commonLabels:
-  app.kubernetes.io/name: loadbalancer
-  app.kubernetes.io/component: load-balancer-stack
+# Common labels (Updated from deprecated commonLabels)
+labels:
+  - pairs:
+      app.kubernetes.io/name: loadbalancer
+      app.kubernetes.io/component: load-balancer-stack
 
 
