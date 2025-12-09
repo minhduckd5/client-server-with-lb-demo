@@ -170,6 +170,7 @@ configure:
       run_play "deploy-nginx-reverse-proxy" -i /work/infra/ansible/inventory.ini /work/infra/ansible/deploy-nginx-reverse-proxy.yml
       run_play "autoscale" -i /work/infra/ansible/inventory.ini /work/infra/ansible/autoscale.yml
       run_play "ingress" -i /work/infra/ansible/inventory.ini /work/infra/ansible/ingress.yml
+      run_play "monitoring" -i /work/infra/ansible/inventory.ini /work/infra/ansible/monitoring.yml
       echo "=== DEBUG: ALL PLAYBOOKS COMPLETED SUCCESSFULLY ==="
       # --- END MODIFICATION ---
       "@

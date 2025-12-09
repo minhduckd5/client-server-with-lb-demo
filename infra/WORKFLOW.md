@@ -238,9 +238,34 @@ sudo k3s kubectl get ipaddresspool -n metallb-system
 
 ---
 
-### Stage 6: Image Build & Distribution (Local Dev)
+### Stage 6: Ingress Controller Deployment
 
-#### 6.1 Build and Distribute Images
+#### 6.1 Deploy Nginx Ingress Controller
+```bash
+ansible-playbook -i infra/ansible/inventory.ini infra/ansible/ingress.yml
+```
+
+**What happens:**
+1. **Namespace Creation:**
+   - Creates `ingress-nginx` namespace.
+   - Generates and applies self-signed certificates for admission webhooks (required for validation).
+
+2. **Ingress Controller Deployment:**
+   - Deploys the Nginx Ingress Controller using Helm-based manifests.
+   - Creates a `LoadBalancer` service for the controller.
+   - MetalLB assigns an external IP to this service (typically distinct from the application load balancer if configured separately, or sharing the pool).
+
+3. **Verification:**
+   - Waits for the controller deployment rollout to complete.
+   - Retrieves the assigned LoadBalancer IP.
+
+**Output:** Ingress Controller ready to route external traffic based on Ingress rules.
+
+---
+
+### Stage 7: Image Build & Distribution (Local Dev)
+
+#### 7.1 Build and Distribute Images
 Before deploying the application, the container images must be built and available on all nodes.
 
 ```bash
@@ -262,9 +287,9 @@ ansible-playbook -i inventory.ini build-images.yml
 
 ---
 
-### Stage 7: Nginx Reverse Proxy Deployment
+### Stage 8: Nginx Reverse Proxy Deployment
 
-#### 7.1 Deploy Nginx Reverse Proxy with MetalLB
+#### 8.1 Deploy Nginx Reverse Proxy with MetalLB
 ```bash
 ansible-playbook -i inventory.ini deploy-nginx-reverse-proxy.yml
 ```
@@ -313,8 +338,8 @@ sudo k3s kubectl get svc -n loadbalancer nginx-service
 
 ---
 
-### Stage 8: Autoscaling & Resilience
-#### 8.1 Deploy Autoscalers
+### Stage 9: Autoscaling & Resilience
+#### 9.1 Deploy Autoscalers
 ```bash
 ansible-playbook -i inventory.ini autoscale.yml
 ```
@@ -333,9 +358,9 @@ ansible-playbook -i inventory.ini autoscale.yml
 
 ---
 
-### Stage 9: Application Deployment
+### Stage 10: Application Deployment
 
-#### 8.1 Deploy Application Manifests
+#### 10.1 Deploy Application Manifests
 ```bash
 # Via GitLab CI or manually
 kubectl apply -f k8s/
@@ -363,9 +388,9 @@ kubectl apply -f k8s/
 
 ---
 
-### Stage 10: Traffic Flow
+### Stage 11: Traffic Flow
 
-#### 10.1 Complete Request Flow
+#### 11.1 Complete Request Flow
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -419,7 +444,7 @@ kubectl apply -f k8s/
    Backend Pod → Service → Nginx → LoadBalancer → Client
 ```
 
-#### 8.2 Load Balancing Logic
+#### 11.2 Load Balancing Logic
 
 **Nginx Reverse Proxy:**
 - **Weighted Distribution:**
@@ -442,9 +467,9 @@ kubectl apply -f k8s/
 
 ---
 
-### Stage 11: Monitoring and Observability
+### Stage 12: Monitoring and Observability
 
-#### 11.1 Monitoring Stack Deployment
+#### 12.1 Monitoring Stack Deployment
 ```bash
 ansible-playbook -i inventory.ini monitoring.yml
 ```
@@ -480,42 +505,42 @@ ansible-playbook -i inventory.ini monitoring.yml
 
 ---
 
-### Stage 12: GitLab CI/CD Pipeline
+### Stage 13: GitLab CI/CD Pipeline
 
-#### 12.1 Automated Workflow
+#### 13.1 Automated Workflow
+
+The project uses a structured CI/CD pipeline (simulated via Ansible or executed by GitLab Runner) that mirrors production deployment steps.
 
 **Pipeline Stages:**
 
-1. **provision** (Manual Approval)
-   ```yaml
-   - Provisions VMs with Vagrant
-   - Generates Ansible inventory
-   ```
+1.  **provision** (Manual Trigger)
+    *   **Goal:** Spin up infrastructure.
+    *   **Tasks:**
+        *   Provisions VMs with Vagrant.
+        *   Generates Ansible inventory (`inventory.ini`) using Terraform.
 
-2. **configure** (Automatic)
-   ```yaml
-   - Runs bootstrap.yml
-   - Installs K3s (k3s-install.yml)
-   - Deploys MetalLB (metallb.yml)
-   - Deploys Nginx Reverse Proxy (deploy-nginx-reverse-proxy.yml)
-   - Deploys Autoscalers (autoscale.yml)
-   - Deploys Ingress Controller (ingress.yml)
-   - Deploys Monitoring (monitoring.yml)
-   ```
+2.  **configure** (Automatic)
+    *   **Goal:** Bootstrap and configure the cluster.
+    *   **Tasks:**
+        *   `bootstrap.yml`: Prepares nodes (sysctl, swap off).
+        *   `k3s-install.yml`: Installs K3s control plane and workers.
+        *   `metallb.yml`: Deploys MetalLB and configures IP pools.
+        *   `ingress.yml`: Deploys Nginx Ingress Controller.
+        *   `monitoring.yml`: Sets up Prometheus and Grafana.
 
-3. **deploy** (Automatic)
-   ```yaml
-   - Retrieves kubeconfig from control plane
-   - Applies Kubernetes manifests from k8s/ directory
-   - Verifies cluster health
-   ```
+3.  **deploy** (Automatic)
+    *   **Goal:** Deploy application workload.
+    *   **Tasks:**
+        *   `deploy-nginx-reverse-proxy.yml`: Deploys the custom Nginx LoadBalancer.
+        *   `autoscale.yml`: Configures HPA and ReplicaSets for resilience.
+        *   **App Deployment:** Applies `k8s/` manifests (Servers, Redis, TCP Auth).
 
-4. **smoke-test** (Automatic)
-   ```yaml
-   - Tests Nginx Reverse Proxy LoadBalancer IP
-   - Tests Ingress Controller (optional)
-   - Tests Grafana (optional)
-   ```
+4.  **smoke-test** (Automatic)
+    *   **Goal:** Verify system health.
+    *   **Tasks:**
+        *   Validates LoadBalancer IP assignment.
+        *   Checks endpoint availability (HTTP 200 OK).
+        *   Verifies HPA target health.
 
 ---
 
