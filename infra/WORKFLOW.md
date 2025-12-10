@@ -110,6 +110,9 @@ terraform output -raw ansible_inventory >
    [k3s_workers]
    k3s-worker-1 ansible_host=192.168.1.201
    k3s-worker-2 ansible_host=192.168.1.202
+
+   [monitoring]
+   k3s-monitoring ansible_host=192.168.1.204
    ...
    ```
 
@@ -184,13 +187,20 @@ ansible-playbook -i inventory.ini k3s-install.yml
    - Starts kubelet and kube-proxy
    - Joins Flannel network
 
-**Output:** Fully functional K3s cluster with 1 control plane + 2 workers
+**On Monitoring Node (k3s-monitoring):**
+1. Installs K3s agent with Taints to prevent normal workloads:
+   ```bash
+   ... sh -s - agent --node-label role=monitoring --node-taint dedicated=monitoring:NoSchedule
+   ```
+2. Node is reserved exclusively for monitoring stack.
+
+**Output:** Fully functional K3s cluster with 1 control plane + 2 workers + 1 monitoring node
 
 **Verification:**
 ```bash
 ssh vagrant@192.168.1.200
 sudo k3s kubectl get nodes
-# Should show 3 nodes: control-plane, worker-1, worker-2
+# Should show 4 nodes: control-plane, worker-1, worker-2, monitoring
 ```
 
 ---
@@ -476,6 +486,7 @@ ansible-playbook -i inventory.ini monitoring.yml
 
 **What happens:**
 1. **Prometheus:**
+   - Scheduled onto `k3s-monitoring` node (via Taints/Tolerations)
    - Scrapes metrics from:
      - Node exporter (node metrics)
      - Kube-state-metrics (K8s object metrics)
@@ -484,6 +495,7 @@ ansible-playbook -i inventory.ini monitoring.yml
    - Exposed via LoadBalancer service (MetalLB IP)
 
 2. **Grafana:**
+   - Scheduled onto `k3s-monitoring` node
    - Connects to Prometheus as data source
    - Pre-configured dashboards for:
      - Node metrics

@@ -77,3 +77,14 @@
       debug:
         msg: "Monitoring stack deployed. Grafana LoadBalancer IP: {{ grafana_ip.stdout | default('Pending assignment') }}"
 
+    - name: Cleanup temporary manifests
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /tmp/node-exporter.yaml
+        - /tmp/kube-state-metrics.yaml
+        - /tmp/prometheus.yaml
+        - /tmp/grafana.yaml
+      ignore_errors: true
+

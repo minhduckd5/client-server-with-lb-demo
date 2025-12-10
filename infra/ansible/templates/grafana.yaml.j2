@@ -30,6 +30,21 @@ spec:
       labels:
         app: grafana
     spec:
+      tolerations:
+      - key: "dedicated"
+        operator: "Equal"
+        value: "monitoring"
+        effect: "NoSchedule"
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+              - key: role
+                operator: In
+                values:
+                - monitoring
       containers:
       - name: grafana
         image: grafana/grafana:{{ grafana_version }}

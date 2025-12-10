@@ -139,3 +139,47 @@
       debug:
         msg: "K3s agent installed on {{ inventory_hostname }}"
 
+- name: Install K3s on monitoring node
+  hosts: monitoring
+  become: true
+  gather_facts: true
+
+  vars:
+    k3s_version: 'v1.30.2+k3s1'
+    control_plane_host: "{{ groups['k3s_control'][0] }}"
+
+  tasks:
+    - name: Check if K3s is already installed
+      stat:
+        path: /usr/local/bin/k3s
+      register: k3s_installed
+
+    - name: Get K3s token from control plane
+      shell: cat /var/lib/rancher/k3s/server/node-token
+      register: k3s_token_result
+      delegate_to: "{{ control_plane_host }}"
+      changed_when: false
+
+    - name: Get control plane IP
+      set_fact:
+        control_plane_ip: "{{ hostvars[control_plane_host]['ansible_default_ipv4']['address'] }}"
+
+    # Install with Taints to prevent regular workloads
+    - name: Install K3s agent (Tainted)
+      shell: |
+        curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION={{ k3s_version }} K3S_URL=https://{{ control_plane_ip }}:6443 K3S_TOKEN={{ k3s_token_result.stdout }} sh -s - agent \
+        --node-label role=monitoring \
+        --node-taint dedicated=monitoring:NoSchedule
+      when: not k3s_installed.stat.exists
+      register: k3s_monitoring_install
+
+    - name: Wait for monitoring node to join cluster
+      shell: "k3s kubectl get node {{ inventory_hostname }} -o jsonpath='{.status.conditions[?(@.type==\"Ready\")].status}'"
+      delegate_to: "{{ control_plane_host }}"
+      register: node_status
+      until: node_status.rc|default(1) == 0 and node_status.stdout == 'True'
+      retries: 30
+      delay: 10
+      changed_when: false
+      failed_when: false
+      when: not k3s_installed.stat.exists

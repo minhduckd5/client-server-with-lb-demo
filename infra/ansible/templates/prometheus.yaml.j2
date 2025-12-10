@@ -72,6 +72,21 @@ spec:
       labels:
         app: prometheus
     spec:
+      tolerations:
+      - key: "dedicated"
+        operator: "Equal"
+        value: "monitoring"
+        effect: "NoSchedule"
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+              - key: role
+                operator: In
+                values:
+                - monitoring
       containers:
       - name: prometheus
         image: prom/prometheus:{{ prometheus_version }}
