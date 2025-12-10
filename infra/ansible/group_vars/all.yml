@@ -23,7 +23,9 @@ nginx_ingress_version: "1.9.0"
 # Monitoring
 prometheus_version: "v2.48.0"
 grafana_version: "10.2.0"
-node_exporter_version: "1.6.1"
+grafana_admin_user: "admin"
+grafana_admin_password: "password123"
+node_exporter_version: "v1.8.2"
 kube_state_metrics_version: "v2.10.0"
 
 # System Requirements
