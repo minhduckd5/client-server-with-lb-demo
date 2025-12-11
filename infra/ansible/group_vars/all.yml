@@ -13,7 +13,7 @@ k3s_token: ""  # Auto-generated if empty
 
 # MetalLB Configuration
 metallb_version: "v0.13.12"
-# Modified: Shifted start IP to .245 to avoid conflict with Host IP (.242)
+# Modified: Shifted start IP to .243 to avoid conflict with Host IP (.242)
 metallb_ip_pool_start: "192.168.1.243"
 metallb_ip_pool_end: "192.168.1.250"
 
