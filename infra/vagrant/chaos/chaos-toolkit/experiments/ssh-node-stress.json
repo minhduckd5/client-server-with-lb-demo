@@ -1,0 +1,24 @@
+{
+    "version": "1.0.0",
+    "title": "Node Level Stress via SSH",
+    "description": "Directly stress the worker node CPU using stress-ng via SSH (Custom Python Action)",
+    "tags": ["ssh", "infrastructure", "stress-ng"],
+    "method": [
+        {
+            "type": "action",
+            "name": "stress-node-cpu",
+            "provider": {
+                "type": "python",
+                "module": "custom_ssh_actions",
+                "func": "run_stress_ng",
+                "arguments": {
+                    "host": "192.168.1.201",
+                    "username": "vagrant",
+                    "key_path": "/home/vagrant/.ssh/insecure_private_key",
+                    "cmd": "stress-ng --cpu 2 --timeout 180"
+                }
+            }
+        }
+    ]
+}
+

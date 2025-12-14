@@ -1,27 +1,7 @@
 ---
 # Deploy Chaos Engineering Stack to Monitoring VM
-# This playbook syncs the chaos directory and installs dependencies
+# This playbook syncs the chaos directory directly from controller to target
 
-# 1. STAGE: Copy chaos configuration to shared folder (Localhost)
-- name: Stage Chaos Configuration
-  hosts: localhost
-  connection: local
-  gather_facts: false
-  tasks:
-    - name: Sync chaos directory
-      shell: |
-        mkdir -p "{{ playbook_dir }}/../vagrant/chaos"
-        if command -v rsync >/dev/null 2>&1; then
-          # Use rsync for efficiency if available
-          rsync -av --delete --exclude='.git' --exclude='__pycache__' "{{ playbook_dir }}/../../chaos/" "{{ playbook_dir }}/../vagrant/chaos/"
-        else
-          # Fallback for environments without rsync
-          cp -R "{{ playbook_dir }}/../../chaos/." "{{ playbook_dir }}/../vagrant/chaos/"
-        fi
-      args:
-        executable: /bin/sh
-
-# 2. DEPLOY: Setup Chaos Toolkit on Monitoring Node
 - name: Deploy Chaos Toolkit
   hosts: monitoring
   become: true
@@ -48,23 +28,37 @@
         group: vagrant
         mode: '0755'
 
-    - name: Copy chaos files from shared folder
-      # Copy from /vagrant (shared) to /home/vagrant (workspace)
-      # remote_src=yes means copy from remote machine (VM) filesystem
+    - name: Copy chaos files from controller
+      # Direct copy from Ansible controller to Target
+      # Avoids /vagrant shared folder issues
       copy:
-        src: /vagrant/chaos/
+        src: "{{ playbook_dir }}/../../chaos/"
         dest: /home/vagrant/chaos/
-        remote_src: yes
         owner: vagrant
         group: vagrant
         mode: '0755'
+        # exclude git and cache files
+        local_follow: yes
+
+    - name: Copy SSH private key for inter-node access
+      copy:
+        src: ~/.ssh/insecure_private_key
+        dest: /home/vagrant/.ssh/insecure_private_key
+        owner: vagrant
+        group: vagrant
+        mode: '0600'
 
     - name: Install Chaos Toolkit dependencies
       pip:
         requirements: /home/vagrant/chaos/chaos-toolkit/requirements.txt
-        # Install globally or in a venv? Global is easier for single-purpose VM
         executable: pip3
         extra_args: --break-system-packages
+
+    - name: Set PYTHONPATH for custom modules
+      lineinfile:
+        path: /home/vagrant/.bashrc
+        line: 'export PYTHONPATH=$PYTHONPATH:/home/vagrant/chaos/chaos-toolkit'
+        state: present
 
     - name: Fix permissions
       file:
@@ -72,15 +66,3 @@
         owner: vagrant
         group: vagrant
         recurse: yes
-
-# 3. CLEANUP: Remove staged code (Localhost)
-- name: Cleanup Staged Code
-  hosts: localhost
-  connection: local
-  gather_facts: false
-  tasks:
-    - name: Remove staged chaos directory
-      file:
-        path: "{{ playbook_dir }}/../vagrant/chaos"
-        state: absent
-

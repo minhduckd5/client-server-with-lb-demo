@@ -1,0 +1,41 @@
+{
+    "version": "1.0.0",
+    "title": "Multi-Pod CPU Stress",
+    "description": "Orchestrates CPU stress on all server pods (server1, server2, server3) simultaneously.",
+    "tags": ["kubernetes", "infrastructure", "chaos-mesh", "cpu-stress", "multi-target"],
+    "configuration": {
+        "k8s_config": "~/.kube/config"
+    },
+    "method": [
+        {
+            "type": "action",
+            "name": "stress-server1",
+            "provider": {
+                "type": "process",
+                "path": "chaos",
+                "arguments": "run experiments/pod/cpu-stress/server1.json"
+            },
+            "background": true
+        },
+        {
+            "type": "action",
+            "name": "stress-server2",
+            "provider": {
+                "type": "process",
+                "path": "chaos",
+                "arguments": "run experiments/pod/cpu-stress/server2.json"
+            },
+            "background": true
+        },
+        {
+            "type": "action",
+            "name": "stress-server3",
+            "provider": {
+                "type": "process",
+                "path": "chaos",
+                "arguments": "run experiments/pod/cpu-stress/server3.json"
+            }
+        }
+    ]
+}
+

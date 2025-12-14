@@ -1,0 +1,27 @@
+{
+    "version": "1.0.0",
+    "title": "Pod Termination: Server 2",
+    "description": "Terminates one random server2 pod.",
+    "tags": ["kubernetes", "pod", "termination", "server2"],
+    "configuration": {
+        "k8s_config": "~/.kube/config"
+    },
+    "method": [
+        {
+            "type": "action",
+            "name": "terminate-server2-pod",
+            "provider": {
+                "type": "python",
+                "module": "chaosk8s.pod.actions",
+                "func": "terminate_pods",
+                "arguments": {
+                    "label_selector": "app=server2",
+                    "ns": "loadbalancer",
+                    "rand": true
+                }
+            }
+        }
+    ]
+}
+
+

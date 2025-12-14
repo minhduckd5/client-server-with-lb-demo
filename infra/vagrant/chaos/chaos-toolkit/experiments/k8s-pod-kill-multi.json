@@ -1,0 +1,57 @@
+{
+    "version": "1.0.0",
+    "title": "Kubernetes Multi-Pod Termination",
+    "description": "Terminates one pod from each of the server deployments (server1, server2, server3) simultaneously.",
+    "tags": ["kubernetes", "pod", "termination"],
+    "configuration": {
+        "k8s_config": "~/.kube/config"
+    },
+    "method": [
+        {
+            "type": "action",
+            "name": "terminate-server1-pod",
+            "provider": {
+                "type": "python",
+                "module": "chaosk8s.pod.actions",
+                "func": "terminate_pods",
+                "arguments": {
+                    "label_selector": "app=server1",
+                    "ns": "loadbalancer",
+                    "rand": true
+                }
+            },
+            "background": true
+        },
+        {
+            "type": "action",
+            "name": "terminate-server2-pod",
+            "provider": {
+                "type": "python",
+                "module": "chaosk8s.pod.actions",
+                "func": "terminate_pods",
+                "arguments": {
+                    "label_selector": "app=server2",
+                    "ns": "loadbalancer",
+                    "rand": true
+                }
+            },
+            "background": true
+        },
+        {
+            "type": "action",
+            "name": "terminate-server3-pod",
+            "provider": {
+                "type": "python",
+                "module": "chaosk8s.pod.actions",
+                "func": "terminate_pods",
+                "arguments": {
+                    "label_selector": "app=server3",
+                    "ns": "loadbalancer",
+                    "rand": true
+                }
+            }
+        }
+    ]
+}
+
+

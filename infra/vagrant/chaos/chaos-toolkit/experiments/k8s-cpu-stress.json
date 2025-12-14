@@ -1,0 +1,68 @@
+{
+    "version": "1.0.0",
+    "title": "Kubernetes Pod CPU Stress (Chaos Mesh) - Multi Target",
+    "description": "Injects a CPU stress sidecar into ALL server pods using Chaos Mesh.",
+    "tags": ["kubernetes", "infrastructure", "chaos-mesh"],
+    "configuration": {
+        "k8s_config": "~/.kube/config"
+    },
+    "method": [
+        {
+            "type": "action",
+            "name": "create-cpu-stress-chaos-all",
+            "provider": {
+                "type": "python",
+                "module": "chaosk8s.crd.actions",
+                "func": "create_custom_object",
+                "arguments": {
+                    "group": "chaos-mesh.org",
+                    "version": "v1alpha1",
+                    "plural": "stresschaos",
+                    "ns": "loadbalancer",
+                    "resource": {
+                        "apiVersion": "chaos-mesh.org/v1alpha1",
+                        "kind": "StressChaos",
+                        "metadata": {
+                            "name": "cpu-stress-all-servers",
+                            "namespace": "loadbalancer"
+                        },
+                        "spec": {
+                            "mode": "all",
+                            "selector": {
+                                "namespaces": ["loadbalancer"],
+                                "labelSelectors": {
+                                    "app": "server"
+                                }
+                            },
+                            "stressors": {
+                                "cpu": {
+                                    "workers": 2,
+                                    "load": 100
+                                }
+                            },
+                            "duration": "300s"
+                        }
+                    }
+                }
+            }
+        }
+    ],
+    "rollbacks": [
+        {
+            "type": "action",
+            "name": "cleanup-cpu-stress",
+            "provider": {
+                "type": "python",
+                "module": "chaosk8s.crd.actions",
+                "func": "delete_custom_object",
+                "arguments": {
+                    "group": "chaos-mesh.org",
+                    "version": "v1alpha1",
+                    "plural": "stresschaos",
+                    "name": "cpu-stress-all-servers",
+                    "ns": "loadbalancer"
+                }
+            }
+        }
+    ]
+}

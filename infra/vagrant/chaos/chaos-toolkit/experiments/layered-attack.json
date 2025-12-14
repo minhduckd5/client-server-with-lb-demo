@@ -1,0 +1,88 @@
+{
+    "version": "1.0.0",
+    "title": "Layered Attack: Multi-Vector Chaos",
+    "description": "Orchestrates a complex attack by running atomic experiments: CPU stress on all servers + simultaneous pod termination.",
+    "tags": ["kubernetes", "infrastructure", "chaos-mesh", "orchestration"],
+    "configuration": {
+        "k8s_config": "~/.kube/config"
+    },
+    "steady-state-hypothesis": {
+        "title": "System responds, url from nginx",
+        "probes": [
+            {
+                "type": "probe",
+                "name": "app-responds",
+                "tolerance": 200,
+                "provider": {
+                    "type": "http",
+                    "url": "http://192.168.1.247/api/health",
+                    "timeout": 5
+                }
+            }
+        ]
+    },
+    "method": [
+        {
+            "type": "action",
+            "name": "stress-server1",
+            "provider": {
+                "type": "process",
+                "path": "chaos",
+                "arguments": "run experiments/atomic/server1-cpu-stress.json"
+            },
+            "background": true
+        },
+        {
+            "type": "action",
+            "name": "stress-server2",
+            "provider": {
+                "type": "process",
+                "path": "chaos",
+                "arguments": "run experiments/atomic/server2-cpu-stress.json"
+            },
+            "background": true
+        },
+        {
+            "type": "action",
+            "name": "stress-server3",
+            "provider": {
+                "type": "process",
+                "path": "chaos",
+                "arguments": "run experiments/atomic/server3-cpu-stress.json"
+            },
+            "background": true
+        },
+        {
+            "type": "action",
+            "name": "kill-server1",
+            "provider": {
+                "type": "process",
+                "path": "chaos",
+                "arguments": "run experiments/atomic/server1-pod-kill.json"
+            },
+            "background": true
+        },
+        {
+            "type": "action",
+            "name": "kill-server2",
+            "provider": {
+                "type": "process",
+                "path": "chaos",
+                "arguments": "run experiments/atomic/server2-pod-kill.json"
+            },
+            "background": true
+        },
+        {
+            "type": "action",
+            "name": "kill-server3",
+            "provider": {
+                "type": "process",
+                "path": "chaos",
+                "arguments": "run experiments/atomic/server3-pod-kill.json"
+            },
+            "pauses": {
+                "after": 60
+            }
+        }
+    ]
+}

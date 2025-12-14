@@ -1,0 +1,27 @@
+{
+    "version": "1.0.0",
+    "title": "Pod Termination: Server 3",
+    "description": "Terminates one random server3 pod.",
+    "tags": ["kubernetes", "pod", "termination", "server3"],
+    "configuration": {
+        "k8s_config": "~/.kube/config"
+    },
+    "method": [
+        {
+            "type": "action",
+            "name": "terminate-server3-pod",
+            "provider": {
+                "type": "python",
+                "module": "chaosk8s.pod.actions",
+                "func": "terminate_pods",
+                "arguments": {
+                    "label_selector": "app=server3",
+                    "ns": "loadbalancer",
+                    "rand": true
+                }
+            }
+        }
+    ]
+}
+
+

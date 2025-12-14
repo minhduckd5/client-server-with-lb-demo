@@ -12,13 +12,12 @@ This directory contains the experiment definitions and custom drivers for the Ch
 
 ## 🧪 Experiments
 
-### 1. Layered Attack (The "Big One")
+### 1. Layered Attack (Kubernetes + Chaos Mesh)
 **File:** `experiments/layered-attack.json`
 
-This is the master orchestrator. It combines multiple atomic attacks into a single, high-intensity scenario.
-*   **Action 1:** Triggers `k8s-cpu-stress.json` (Injects CPU stress sidecars into ALL server deployments).
-*   **Action 2:** Triggers `k8s-pod-kill-multi.json` (Terminates a random pod from each deployment).
-*   **Orchestration:** Runs CPU stress in the background while performing the kills in the foreground.
+A sophisticated scenario that attacks the system on two fronts simultaneously:
+*   **Infrastructure Stress:** Uses **Chaos Mesh** `StressChaos` to inject a CPU stressor sidecar into `server2` pods. This creates resource contention.
+*   **Availability Test:** Uses **Chaos Toolkit** to terminate pods from `server1`, `server2`, and `server3` in parallel.
 
 **Goal:** Verify that the system remains responsive (Steady State Probe) despite high load and loss of replicas.
 
@@ -26,22 +25,7 @@ This is the master orchestrator. It combines multiple atomic attacks into a sing
 chaos run experiments/layered-attack.json
 ```
 
-### 2. Atomic Experiments (Building Blocks)
-
-You can run these individually to test specific failure modes.
-
-#### A. Multi-Pod CPU Stress
-**File:** `experiments/k8s-cpu-stress.json`
-*   Uses **Chaos Mesh** `StressChaos` to inject CPU stress sidecars into one pod of each server deployment (`server1`, `server2`, `server3`).
-*   Duration: 60 seconds.
-
-#### B. Multi-Pod Termination
-**File:** `experiments/k8s-pod-kill-multi.json`
-*   Uses **Chaos Toolkit** native Kubernetes driver.
-*   Terminates one random pod from `server1`, `server2`, and `server3` simultaneously.
-*   Triggers Kubernetes ReplicaSet auto-healing.
-
-### 3. Infrastructure Node Stress (SSH + Stress-ng)
+### 2. Infrastructure Node Stress (SSH + Stress-ng)
 **File:** `experiments/ssh-node-stress.json`
 
 A brute-force infrastructure attack targeting the OS level directly.

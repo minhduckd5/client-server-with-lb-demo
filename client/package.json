@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:auto": "powershell -ExecutionPolicy Bypass -File ../scripts/update-client-ip.ps1 && vite",
+    "dev:auto:linux": "bash ../scripts/update-client-ip.sh && vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"

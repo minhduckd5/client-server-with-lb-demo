@@ -32,9 +32,13 @@
           --namespace chaos-mesh \
           --set dashboard.securityMode=false \
           --set dashboard.service.type=LoadBalancer \
+          --set chaosDaemon.runtime=containerd \
+          --set chaosDaemon.socketPath=/run/k3s/containerd/containerd.sock \
           --version 2.6.2
       environment:
         KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+
 
 
 

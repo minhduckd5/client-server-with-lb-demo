@@ -1,0 +1,61 @@
+{
+    "version": "1.0.0",
+    "title": "System Resilience to High Redis Latency via Toxiproxy",
+    "description": "If Redis becomes slow, the auth service should handle it gracefully (e.g. fallback or error message) without crashing.",
+    "steady-state-hypothesis": {
+        "title": "Auth Service Responds",
+        "probes": [
+            {
+                "type": "probe",
+                "name": "auth-health-check",
+                "tolerance": 200,
+                "provider": {
+                    "type": "http",
+                    "url": "http://localhost:9090/health",
+                    "timeout": 2
+                }
+            }
+        ]
+    },
+    "method": [
+        {
+            "type": "action",
+            "name": "inject-latency-to-redis",
+            "provider": {
+                "type": "python",
+                "module": "chaostoxi.toxic.actions",
+                "func": "create_toxic",
+                "arguments": {
+                    "proxy": "redis",
+                    "toxic_name": "latency-spike",
+                    "toxic_type": "latency",
+                    "attributes": {
+                        "latency": 2000,
+                        "jitter": 100
+                    }
+                }
+            },
+            "pauses": {
+                "after": 10
+            }
+        }
+    ],
+    "rollbacks": [
+        {
+            "type": "action",
+            "name": "remove-latency",
+            "provider": {
+                "type": "python",
+                "module": "chaostoxi.toxic.actions",
+                "func": "delete_toxic",
+                "arguments": {
+                    "proxy": "redis",
+                    "toxic_name": "latency-spike"
+                }
+            }
+        }
+    ]
+}
+
+
+

@@ -1,8 +1,8 @@
 {
     "version": "1.0.0",
-    "title": "Layered Attack: CPU Stress on Node + Pod Termination",
-    "description": "Simulate a noisy neighbor (CPU stress via Chaos Mesh) on a worker node while simultaneously killing a backend pod.",
-    "tags": ["kubernetes", "infrastructure", "chaos-mesh"],
+    "title": "Layered Attack: Multi-Vector Chaos",
+    "description": "Orchestrates a complex attack by combining Multi-Pod CPU Stress and Multi-Pod Termination.",
+    "tags": ["kubernetes", "infrastructure", "chaos-mesh", "orchestration", "layered"],
     "configuration": {
         "k8s_config": "~/.kube/config"
     },
@@ -15,7 +15,7 @@
                 "tolerance": 200,
                 "provider": {
                     "type": "http",
-                    "url": "http://192.168.1.246/api/health",
+                    "url": "http://192.168.1.247/api/health",
                     "timeout": 5
                 }
             }
@@ -24,107 +24,24 @@
     "method": [
         {
             "type": "action",
-            "name": "create-cpu-stress-chaos",
+            "name": "multi-cpu-stress",
             "provider": {
-                "type": "python",
-                "module": "chaosk8s.crd.actions",
-                "func": "create_custom_object",
-                "arguments": {
-                    "group": "chaos-mesh.org",
-                    "version": "v1alpha1",
-                    "plural": "stresschaos",
-                    "ns": "loadbalancer",
-                    "resource": {
-                        "apiVersion": "chaos-mesh.org/v1alpha1",
-                        "kind": "StressChaos",
-                        "metadata": {
-                            "name": "cpu-stress-example",
-                            "namespace": "loadbalancer"
-                        },
-                        "spec": {
-                            "mode": "one",
-                            "selector": {
-                                "namespaces": ["loadbalancer"],
-                                "labelSelectors": {
-                                    "app": "server2"
-                                }
-                            },
-                            "stressors": {
-                                "cpu": {
-                                    "workers": 1,
-                                    "load": 100
-                                }
-                            },
-                            "duration": "300s"
-                        }
-                    }
-                }
+                "type": "process",
+                "path": "chaos",
+                "arguments": "run experiments/k8s-cpu-stress.json"
             },
             "background": true
         },
         {
             "type": "action",
-            "name": "terminate-server1-pod",
+            "name": "multi-pod-kill",
             "provider": {
-                "type": "python",
-                "module": "chaosk8s.pod.actions",
-                "func": "terminate_pods",
-                "arguments": {
-                    "label_selector": "app=server1",
-                    "ns": "loadbalancer",
-                    "rand": true
-                }
-            },
-            "background": true
-        },
-        {
-            "type": "action",
-            "name": "terminate-server2-pod",
-            "provider": {
-                "type": "python",
-                "module": "chaosk8s.pod.actions",
-                "func": "terminate_pods",
-                "arguments": {
-                    "label_selector": "app=server2",
-                    "ns": "loadbalancer",
-                    "rand": true
-                }
-            },
-            "background": true
-        },
-        {
-            "type": "action",
-            "name": "terminate-server3-pod",
-            "provider": {
-                "type": "python",
-                "module": "chaosk8s.pod.actions",
-                "func": "terminate_pods",
-                "arguments": {
-                    "label_selector": "app=server3",
-                    "ns": "loadbalancer",
-                    "rand": true
-                }
+                "type": "process",
+                "path": "chaos",
+                "arguments": "run experiments/k8s-pod-kill-multi.json"
             },
             "pauses": {
-                "after": 300
-            }
-        }
-    ],
-    "rollbacks": [
-        {
-            "type": "action",
-            "name": "cleanup-cpu-stress",
-            "provider": {
-                "type": "python",
-                "module": "chaosk8s.crd.actions",
-                "func": "delete_custom_object",
-                "arguments": {
-                    "group": "chaos-mesh.org",
-                    "version": "v1alpha1",
-                    "plural": "stresschaos",
-                    "name": "cpu-stress-example",
-                    "ns": "loadbalancer"
-                }
+                "after": 60
             }
         }
     ]
