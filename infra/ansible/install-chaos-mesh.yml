@@ -1,0 +1,41 @@
+---
+- name: Install Chaos Mesh
+  hosts: k3s_control
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Install Helm
+      shell: |
+        curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+      args:
+        creates: /usr/local/bin/helm
+
+    - name: Add Chaos Mesh Helm repo
+      shell: |
+        helm repo add chaos-mesh https://charts.chaos-mesh.org
+        helm repo update
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+    - name: Create chaos-mesh namespace
+      shell: |
+        kubectl create ns chaos-mesh
+      register: create_ns
+      failed_when: create_ns.rc != 0 and "already exists" not in create_ns.stderr
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+    - name: Install/Upgrade Chaos Mesh
+      shell: |
+        helm upgrade --install chaos-mesh chaos-mesh/chaos-mesh \
+          --namespace chaos-mesh \
+          --set dashboard.securityMode=false \
+          --set dashboard.service.type=LoadBalancer \
+          --version 2.6.2
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+
+
+

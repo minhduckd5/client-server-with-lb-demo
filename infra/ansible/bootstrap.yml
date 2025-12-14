@@ -25,6 +25,7 @@
           - software-properties-common
           - net-tools
           - vim
+          - stress-ng
         state: present
 
     - name: Disable swap
