@@ -1,101 +1,65 @@
 ---
 # Build and Distribute Docker Images for K3s Cluster
 # This playbook automates the build-export-import cycle for local development
-# MODIFIED: Environment-agnostic implementation supporting both Vagrant and GitLab CI
 
-# 1. BUILD: Build Server Image on Control Plane
+# 1. STAGE: Copy source code to shared folder (Localhost)
+- name: Stage Server Source Code
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Sync server directory
+      shell: |
+        mkdir -p "{{ playbook_dir }}/../vagrant/server"
+        if command -v rsync >/dev/null 2>&1; then
+          # Use rsync for efficiency if available
+          rsync -av --delete --exclude='node_modules' --exclude='.git' "{{ playbook_dir }}/../../server/" "{{ playbook_dir }}/../vagrant/server/"
+        else
+          # Fallback for environments without rsync (e.g. Alpine default)
+          cp -R "{{ playbook_dir }}/../../server/." "{{ playbook_dir }}/../vagrant/server/"
+          # Manual cleanup of excluded items
+          rm -rf "{{ playbook_dir }}/../vagrant/server/node_modules"
+          rm -rf "{{ playbook_dir }}/../vagrant/server/.git"
+        fi
+      args:
+        executable: /bin/sh
+
+# 2. BUILD: Build Server Image on Control Plane
 - name: Build Server Image on Control Plane
   hosts: k3s_control
   become: true
-  vars:
-    # MODIFIED: Use consistent paths that work in both Vagrant and GitLab CI
-    server_build_path: /tmp/server-build
-    server_image_tar: /tmp/server-image.tar
-    server_source_path: "{{ playbook_dir }}/../../server"
   tasks:
     - name: Ensure Docker is installed
       package:
         name: docker.io
         state: present
 
-    # MODIFIED: Verify server source path exists
-    - name: Check if server source directory exists
-      stat:
-        path: "{{ server_source_path }}"
-      register: server_source_stat
-      delegate_to: localhost
-      run_once: true
-
-    # MODIFIED: Fail if server directory not found
-    - name: Fail if server directory not found
-      fail:
-        msg: "Server source directory not found at {{ server_source_path }}. Playbook dir: {{ playbook_dir }}"
-      when: not server_source_stat.stat.exists
-      delegate_to: localhost
-      run_once: true
-
-    # MODIFIED: Copy server directory to control plane (works in both Vagrant and GitLab CI)
-    # Ansible copy module resolves paths relative to playbook_dir automatically
-    - name: Copy server source to control plane
-      copy:
-        src: "{{ server_source_path }}/"
-        dest: "{{ server_build_path }}"
-        exclude:
-          - "node_modules"
-          - ".git"
-          - "*.log"
-        mode: preserve
-
-    # MODIFIED: Build Docker image from copied source
     - name: Build Docker image from source
-      command: docker build -t server:latest {{ server_build_path }}
+      command: docker build -t server:latest /vagrant/server
       args:
-        chdir: "{{ server_build_path }}"
+        chdir: /vagrant/server
 
-    # MODIFIED: Save Docker image to tarball
     - name: Save Docker image to tarball
-      command: docker save server:latest -o {{ server_image_tar }}
+      command: docker save server:latest -o /vagrant/server-image.tar
 
-# 2. DISTRIBUTE: Import Image on All Nodes
+# 3. DISTRIBUTE: Import Image on All Nodes
 - name: Import Image on All Nodes
   hosts: k3s_nodes
   become: true
-  vars:
-    server_image_tar: /tmp/server-image.tar
   serial: 1 # Run one at a time to avoid disk I/O contention
   tasks:
-    # MODIFIED: Copy tarball from control plane to each worker node
-    - name: Copy image tarball to worker node
-      copy:
-        src: "{{ server_image_tar }}"
-        dest: "{{ server_image_tar }}"
-        remote_src: true
-      delegate_to: "{{ groups['k3s_control'][0] }}"
-      when: inventory_hostname in groups['k3s_workers']
-
-    # MODIFIED: Import image into K3s (containerd)
     - name: Import image into K3s (containerd)
-      command: k3s ctr images import {{ server_image_tar }}
+      command: k3s ctr images import /vagrant/server-image.tar
       register: import_result
       changed_when: "'unpacking' in import_result.stdout"
 
-# 3. CLEANUP: Remove staged code and artifacts
-- name: Cleanup Staged Code and Artifacts
-  hosts: k3s_nodes
-  become: true
-  vars:
-    server_build_path: /tmp/server-build
-    server_image_tar: /tmp/server-image.tar
+# 4. CLEANUP: Remove staged code (Localhost)
+- name: Cleanup Staged Code
+  hosts: localhost
+  connection: local
+  gather_facts: false
   tasks:
-    # MODIFIED: Remove build directory (only on control plane)
-    - name: Remove build directory
+    - name: Remove staged server directory
       file:
-        path: "{{ server_build_path }}"
-        state: absent
-      when: inventory_hostname in groups['k3s_control']
-
-    # MODIFIED: Remove image tarball from all nodes
-    - name: Remove image tarball
-      file:
-        path: "{{ server_image_tar }}"
+        path: "{{ playbook_dir }}/../vagrant/server"
         state: absent

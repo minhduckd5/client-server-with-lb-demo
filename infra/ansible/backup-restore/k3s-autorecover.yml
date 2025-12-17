@@ -1,0 +1,174 @@
+---
+# RECOVERY PLAYBOOK: WIPES CLUSTER AND REINSTALLS
+# USAGE: ansible-playbook -i infra/ansible/inventory infra/ansible/backup-restore/k3s-autorecover.yml
+
+# -----------------------------------
+# STEP 1: CLEANUP EVERYTHING
+# -----------------------------------
+- name: Nuke Control Plane
+  hosts: k3s_control
+  become: true
+  tasks:
+    - name: Uninstall K3s Server
+      command: /usr/local/bin/k3s-uninstall.sh
+      ignore_errors: true
+
+    - name: Remove K3s directories
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /var/lib/rancher/k3s
+        - /etc/rancher/k3s
+        - /root/.kube
+
+- name: Nuke Worker Nodes
+  hosts: k3s_workers:monitoring:k3s_ops
+  become: true
+  tasks:
+    - name: Uninstall K3s Agent
+      command: /usr/local/bin/k3s-agent-uninstall.sh
+      ignore_errors: true
+
+    - name: Remove K3s directories
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /var/lib/rancher/k3s
+        - /etc/rancher/k3s
+
+# -----------------------------------
+# STEP 2: REINSTALL CONTROL PLANE
+# -----------------------------------
+- name: Reinstall Control Plane
+  hosts: k3s_control
+  become: true
+  vars:
+    k3s_version: 'v1.30.2+k3s1'
+  tasks:
+    - name: Install K3s server
+      shell: |
+        curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION={{ k3s_version }} sh -s - server \
+          --cluster-init \
+          --write-kubeconfig-mode 644 \
+          --tls-san {{ ansible_default_ipv4.address }}
+
+    - name: Wait for K3s to be ready
+      shell: "curl -sfL --insecure https://localhost:6443/ping"
+      register: k3s_ready
+      until: k3s_ready.rc|default(1) == 0 and k3s_ready.stdout|trim == "pong"
+      retries: 30
+      delay: 5
+
+    - name: Get K3s node token
+      shell: cat /var/lib/rancher/k3s/server/node-token
+      register: k3s_node_token
+
+    - name: Store token for workers
+      add_host:
+        name: "K3S_TOKEN_HOLDER"
+        token: "{{ k3s_node_token.stdout }}"
+        cp_ip: "{{ ansible_default_ipv4.address }}"
+
+    - name: Create .kube directory
+      file:
+        path: "/home/{{ ansible_user }}/.kube"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0755'
+
+    - name: Copy kubeconfig to user home
+      copy:
+        src: /etc/rancher/k3s/k3s.yaml
+        dest: "/home/{{ ansible_user }}/.kube/config"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0600'
+        remote_src: true
+
+    - name: Update kubeconfig server URL
+      lineinfile:
+        path: "/home/{{ ansible_user }}/.kube/config"
+        regexp: '^(\s+)server: https://127.0.0.1:6443'
+        line: '\1server: https://{{ ansible_default_ipv4.address }}:6443'
+        backrefs: true
+
+    - name: Fetch Kubeconfig for Workers
+      fetch:
+        src: "/home/{{ ansible_user }}/.kube/config"
+        dest: "/tmp/k3s-kubeconfig"
+        flat: true
+
+# -----------------------------------
+# STEP 3: REJOIN WORKERS
+# -----------------------------------
+- name: Rejoin Workers & Distribute Config
+  hosts: k3s_workers:monitoring:k3s_ops
+  become: true
+  vars:
+    k3s_version: 'v1.30.2+k3s1'
+  tasks:
+    - name: Install K3s agent
+      shell: |
+        curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION={{ k3s_version }} K3S_URL=https://{{ hostvars['K3S_TOKEN_HOLDER']['cp_ip'] }}:6443 K3S_TOKEN={{ hostvars['K3S_TOKEN_HOLDER']['token'] }} sh -s - agent
+      when: "'k3s_workers' in group_names"
+
+    - name: Install K3s agent (Monitoring Taint)
+      shell: |
+        curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION={{ k3s_version }} K3S_URL=https://{{ hostvars['K3S_TOKEN_HOLDER']['cp_ip'] }}:6443 K3S_TOKEN={{ hostvars['K3S_TOKEN_HOLDER']['token'] }} sh -s - agent \
+        --node-label role=monitoring \
+        --node-taint dedicated=monitoring:NoSchedule
+      when: "'monitoring' in group_names"
+
+    - name: Install K3s agent (Ops Taint)
+      shell: |
+        curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION={{ k3s_version }} K3S_URL=https://{{ hostvars['K3S_TOKEN_HOLDER']['cp_ip'] }}:6443 K3S_TOKEN={{ hostvars['K3S_TOKEN_HOLDER']['token'] }} sh -s - agent \
+        --node-label role=ops \
+        --node-taint dedicated=ops:NoSchedule
+      when: "'k3s_ops' in group_names"
+
+    - name: Create .kube directory
+      file:
+        path: "/home/{{ ansible_user }}/.kube"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0755'
+
+    - name: Copy Kubeconfig from Control Plane
+      copy:
+        src: /tmp/k3s-kubeconfig
+        dest: "/home/{{ ansible_user }}/.kube/config"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        mode: '0600'
+
+# -----------------------------------
+# STEP 4: RESTORE WORKLOADS
+# -----------------------------------
+- name: Apply Backup Policy
+  import_playbook: ../backup-restore/k3s-backup-policy.yml
+
+- name: Restore MetalLB
+  import_playbook: ../metallb.yml
+
+- name: Build & Distribute Images
+  import_playbook: ../build-images.yml
+
+- name: Restore Ingress
+  import_playbook: ../ingress.yml
+
+- name: Restore Demo App
+  import_playbook: ../deploy-nginx-reverse-proxy.yml
+
+- name: Restore Autoscale
+  import_playbook: ../autoscale.yml
+
+- name: Restore Monitoring
+  import_playbook: ../monitoring.yml
+
+- name: Restore Chaos Mesh
+  import_playbook: ../install-chaos-mesh.yml
+

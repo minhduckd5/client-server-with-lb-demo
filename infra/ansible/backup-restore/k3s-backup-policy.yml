@@ -1,0 +1,31 @@
+---
+# NOTE: This backup policy applies only to the control plane (k3s_control)
+# because the Etcd database resides exclusively on the server node in this architecture.
+# Worker nodes are stateless and do not require database snapshots.
+
+- name: Configure K3s Etcd Snapshot Policy
+  hosts: k3s_control
+  become: true
+  tasks:
+    - name: Create K3s config directory
+      file:
+        path: /etc/rancher/k3s
+        state: directory
+        mode: '0755'
+
+    - name: Configure K3s Etcd Snapshots (config.yaml)
+      # This configures K3s to take snapshots every 2 hours and keep 24 of them (48 hours worth)
+      blockinfile:
+        path: /etc/rancher/k3s/config.yaml
+        create: true
+        block: |
+          etcd-snapshot-schedule-cron: "0 */2 * * *"
+          etcd-snapshot-retention: 24
+          etcd-snapshot-dir: "/var/lib/rancher/k3s/server/db/snapshots"
+        marker: "# {mark} ANSIBLE MANAGED BLOCK: ETCD BACKUP POLICY"
+
+    - name: Restart K3s to apply backup policy
+      systemd:
+        name: k3s
+        state: restarted
+

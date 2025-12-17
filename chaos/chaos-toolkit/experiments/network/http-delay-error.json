@@ -1,0 +1,152 @@
+{
+    "version": "1.0.0",
+    "title": "Application Layer: HTTP Delay & Error Injection",
+    "description": "Injects 5s delay for 50% of requests and random 500 errors through nginx reverse proxy to test client retry/circuit breaker and load balancer failover behavior.",
+    "tags": ["kubernetes", "application", "chaos-mesh", "httpchaos", "network"],
+    "configuration": {
+        "k8s_config": "~/.kube/config"
+    },
+    "steady-state-hypothesis": {
+        "title": "System responds despite HTTP chaos",
+        "probes": [
+            {
+                "type": "probe",
+                "name": "app-responds",
+                "tolerance": 200,
+                "provider": {
+                    "type": "http",
+                    "url": "http://192.168.1.247/api/health",
+                    "timeout": 10
+                }
+            }
+        ]
+    },
+    "method": [
+        {
+            "type": "action",
+            "name": "inject-http-delay",
+            "provider": {
+                "type": "python",
+                "module": "chaosk8s.crd.actions",
+                "func": "create_custom_object",
+                "arguments": {
+                    "group": "chaos-mesh.org",
+                    "version": "v1alpha1",
+                    "plural": "httpchaos",
+                    "ns": "loadbalancer",
+                    "resource": {
+                        "apiVersion": "chaos-mesh.org/v1alpha1",
+                        "kind": "HTTPChaos",
+                        "metadata": {
+                            "name": "nginx-http-delay",
+                            "namespace": "loadbalancer"
+                        },
+                        "spec": {
+                            "mode": "all",
+                            "selector": {
+                                "namespaces": ["loadbalancer"],
+                                "labelSelectors": {
+                                    "app": "nginx-reverse-proxy"
+                                }
+                            },
+                            "target": "Request",
+                            "port": 8080,
+                            "rules": [
+                                {
+                                    "path": "/api/*",
+                                    "delay": "5s",
+                                    "abort": false,
+                                    "percentage": 50
+                                }
+                            ],
+                            "duration": "60s"
+                        }
+                    }
+                }
+            },
+            "background": true
+        },
+        {
+            "type": "action",
+            "name": "inject-http-errors",
+            "provider": {
+                "type": "python",
+                "module": "chaosk8s.crd.actions",
+                "func": "create_custom_object",
+                "arguments": {
+                    "group": "chaos-mesh.org",
+                    "version": "v1alpha1",
+                    "plural": "httpchaos",
+                    "ns": "loadbalancer",
+                    "resource": {
+                        "apiVersion": "chaos-mesh.org/v1alpha1",
+                        "kind": "HTTPChaos",
+                        "metadata": {
+                            "name": "nginx-http-errors",
+                            "namespace": "loadbalancer"
+                        },
+                        "spec": {
+                            "mode": "all",
+                            "selector": {
+                                "namespaces": ["loadbalancer"],
+                                "labelSelectors": {
+                                    "app": "nginx-reverse-proxy"
+                                }
+                            },
+                            "target": "Request",
+                            "port": 8080,
+                            "rules": [
+                                {
+                                    "path": "/api/*",
+                                    "delay": "0s",
+                                    "abort": true,
+                                    "statusCode": 500,
+                                    "percentage": 10
+                                }
+                            ],
+                            "duration": "60s"
+                        }
+                    }
+                }
+            },
+            "pauses": {
+                "after": 60
+            }
+        }
+    ],
+    "rollbacks": [
+        {
+            "type": "action",
+            "name": "cleanup-http-delay",
+            "provider": {
+                "type": "python",
+                "module": "chaosk8s.crd.actions",
+                "func": "delete_custom_object",
+                "arguments": {
+                    "group": "chaos-mesh.org",
+                    "version": "v1alpha1",
+                    "plural": "httpchaos",
+                    "name": "nginx-http-delay",
+                    "ns": "loadbalancer"
+                }
+            }
+        },
+        {
+            "type": "action",
+            "name": "cleanup-http-errors",
+            "provider": {
+                "type": "python",
+                "module": "chaosk8s.crd.actions",
+                "func": "delete_custom_object",
+                "arguments": {
+                    "group": "chaos-mesh.org",
+                    "version": "v1alpha1",
+                    "plural": "httpchaos",
+                    "name": "nginx-http-errors",
+                    "ns": "loadbalancer"
+                }
+            }
+        }
+    ]
+}
+

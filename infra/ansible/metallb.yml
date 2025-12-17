@@ -35,14 +35,32 @@
       register: metallb_apply
 
     - name: Wait for MetalLB controller to be ready
-      shell: kubectl --kubeconfig={{ kubeconfig_path }} wait --namespace {{ metallb_namespace }} --for=condition=ready pod --selector=app=metallb --timeout=300s
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} wait --namespace {{ metallb_namespace }} --for=condition=ready pod --selector=component=controller --timeout=300s
       when: metallb_check.rc != 0
-      ignore_errors: true
+      # ignore_errors: true
+      register: metallb_controller_wait
+      retries: 5
+      delay: 10
+      until: metallb_controller_wait.rc == 0
 
     - name: Wait for MetalLB speaker pods to be ready
-      shell: kubectl --kubeconfig={{ kubeconfig_path }} wait --namespace {{ metallb_namespace }} --for=condition=ready pod --selector=app=metallb,component=speaker --timeout=300s
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} wait --namespace {{ metallb_namespace }} --for=condition=ready pod --selector=component=speaker --timeout=300s
       when: metallb_check.rc != 0
-      ignore_errors: true
+      # ignore_errors: true
+      register: metallb_speaker_wait
+      retries: 5
+      delay: 10
+      until: metallb_speaker_wait.rc == 0
+
+    # Critical: Wait for the webhook service to be ready BEFORE applying the ConfigMap
+    # The error "endpoints webhook-service not found" happens because the service is created but endpoints aren't populated yet
+    - name: Wait for MetalLB webhook service
+      shell: kubectl --kubeconfig={{ kubeconfig_path }} wait --namespace {{ metallb_namespace }} --for=condition=ready pod --selector=component=controller --timeout=300s
+      when: metallb_check.rc != 0
+      register: metallb_webhook_wait
+      retries: 10
+      delay: 10
+      until: metallb_webhook_wait.rc == 0
 
     - name: Create MetalLB IP address pool ConfigMap
       template:
